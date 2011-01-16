@@ -1,0 +1,29 @@
+First read me:
+
+This can be executed as 
+
+>puppet test
+
+It must be in the same directory as your core puppet source unless you apply the following patch:
+
+http://projects.puppetlabs.com/issues/5977
+
+This patch should be merged into 2.6.5
+
+you need to set RUBYLIB to point to the lib directory.
+
+USAGE:
+
+puppet test --check_tests
+  check that all manifests in the modulepath have corresponding test manifests.
+
+puppet test --compile_tests --factnode FOO [-run_noop]
+  check that we can compile all of the manifests in the test directory.
+  factnode - node whose facts we will use for all of the test compiles. This
+    must exist in /var/lib/puppet/yaml/facts/FOO.yaml
+      NOTE - should be using facter
+  run_noop - run the tests on noop after we compile.
+
+puppet test --test_nodes (NODE|--all) [--node_type (facts|node)]
+  test_nodes - nodes to tests --all is all nodes
+  node_type - whether the nodes are serialized from node yaml or facts yaml
