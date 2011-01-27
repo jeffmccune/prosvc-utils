@@ -86,8 +86,8 @@ module Puppet::Tools
     #
     # create a new node, merge facts,  and compile its catalog
     #
-    def compile_new_node(node_name, factname, outputdir, classes=[])
-      facts=get_facts(factname)
+    def compile_new_node(node_name, factname, outputdir, format=:facter, classes=[])
+      facts=get_facts(factname, format)
       node = Puppet::Node.new(node_name, :classes=>classes)
       node.merge(facts)
       compile_and_save_catalog(node, outputdir)
