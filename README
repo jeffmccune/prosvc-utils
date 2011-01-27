@@ -1,11 +1,17 @@
-This is a prototype and needs to be tested a little more in detail.
+NOTE - This is an early stage prototype, input is welcome!
 
+released under GPLv2 - 
+copyright - Puppetlabs
+author - Dan Bode
 
-First read me:
+Creates a new Puppet Application that can be used for testing.
 
-This can be executed as 
+Assumes that you follow Puppetlab's best practices for testing.
 
->puppet test
+All modules should have a test directory that mirrors the
+manifests directory.
+
+INSTALLATION:
 
 It must be in the same directory as your core puppet source unless you apply the following patch:
 
@@ -13,21 +19,23 @@ http://projects.puppetlabs.com/issues/5977
 
 This patch should be merged into 2.6.5
 
-you need to set RUBYLIB to point to the lib directory.
+If you use the patch, you should be able to store it as a plugin
+module.
 
 USAGE:
 
-puppet test --check_tests
-  check that all manifests in the modulepath have corresponding test manifests.
+puppet tester --check_tests [--environment ENV]
+  check that all manifests in the modulepath have corresponding tests manifests.
 
-puppet test --compile_tests --factnode FOO [--run_noop]
+puppet tester --compile_tests --factnode FOO [--run_noop] [--environment]
   check that we can compile all of the manifests in the test directory.
   factnode - node whose facts we will use for all of the test compiles. This
     must exist in /var/lib/puppet/yaml/facts/FOO.yaml
       NOTE - should be using facter
   run_noop - run the catalogs on noop after we compile.
+    -environment to compile against
 
-puppet test --test_nodes (NODE|--all) [--node_type (facts|node)]
+puppet tester --test_nodes (NODE|--all) [--node_type (facts|node)]
   test_nodes - nodes to tests --all is all nodes
   node_type - whether the nodes are serialized from node yaml or facts yaml
 
