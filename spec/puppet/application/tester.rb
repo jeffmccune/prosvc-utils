@@ -73,6 +73,9 @@ describe 'Puppet::Application::Tester' do
        end  
       end
     end
+    describe 'when assigning environments' do
+
+    end
     describe 'when building fake manifests' do
       it 'should work with one modulepath' do
         @tester.build_fake_manifest(@modulepaths.first).should == ['bar-init.pp']

@@ -2,14 +2,11 @@
 # between a resource vs. ral catalog?
 # TODO - read Nan's code, noop needs to ignore execs with unless/onlyif
 # NOTE - maybe Puppet[:manifest] should be unset when using Puppet[:code]
-# TODO - test with environments (I think it will work)
-# TODO - add unit tests
+# TODO - make sure the facts and node serialization stuff works with environments
+# TODO - add more unit tests
 # TODO - I should allow filters of which nodes we are going to apply
 #   - awesome sauce!!
 # TODO - we should probably warn if the outputdir exists?
-#
-# TODO - compile tests does not work with environemnts
-# when using facts or nodes, I should be able to pass in classes
 #
 
 # This script takes a node name and a directory to output the compiled
@@ -109,12 +106,15 @@ class Puppet::Application::Tester < Puppet::Application
     else
       Puppet::Util::Log.level = :notice
     end
+    @env = Puppet::Node::Environment.new(Puppet['environment'])
+    @modulepath = @env[:modulepath]
+    @manifest = @env[:manifest]
   end
 
   # main method
   def run_command
     if options[:check_tests]
-      check_tests(Puppet[:modulepath]).each do |name|
+      check_tests(@modulepath).each do |name|
         Puppet.warning("#{name} is missing tests")
       end
     end
@@ -125,7 +125,6 @@ class Puppet::Application::Tester < Puppet::Application
       end  
     end
     # creates nodes based on the serialized facts.
-    # TODO: 
     if options[:test_nodes]
       node_list=nil
       if options[:test_nodes] == :all
@@ -146,6 +145,7 @@ class Puppet::Application::Tester < Puppet::Application
     tests = []
     manifests =[]
     modulepath.split(':').each do |path|
+      path.gsub!(/\/$/, '')
       Puppet.info("Checking tests for modulepath: #{path}")
       Find.find(path) do |file|
         if file =~ /#{path}\/(\S+)\/tests\/(\S+.pp)$/
@@ -163,7 +163,7 @@ class Puppet::Application::Tester < Puppet::Application
     # convert all tests into Puppet[:node]
     # with unique node per test
     # NOTE - this does not work with environments
-    testnames=build_fake_manifest(Puppet[:modulepath])
+    testnames=build_fake_manifest(@modulepath)
     # iterate though all of the node names that present the tests
     testnames.each do |node_name|
       compile_new_node(node_name, options[:factnode], options[:outputdir])
