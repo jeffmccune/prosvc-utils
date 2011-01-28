@@ -3,7 +3,8 @@
 require 'puppet'
 require 'puppet/tools/compile'
 #require 'puppet/application/apply'
-require 'puppet/application/test'
+require 'puppet/application'
+require 'puppet/application/tester'
 require 'yaml'
 
 # find all of the puppet spec stuff (more than a little ghetto)
@@ -36,8 +37,11 @@ describe 'Puppet::Application::Tester' do
 #                  #'debug'         => '',
 #                  'module_path'   => 'PATH'
 #               }
-    Puppet::Util::CommandLine.new.require_application('tester')
-    @app = Puppet::Application.find('tester') #.new(self)
+    require 'ruby-debug';debugger
+    require 'puppet/application/tester'
+    #Puppet::Util::CommandLine.new.require_application('tester')
+    #@app = Puppet::Application.find('tester')
+    @tester = Puppet::Application[:tester]
     @tester = @app.new()
   end
 

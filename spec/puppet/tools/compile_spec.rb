@@ -100,7 +100,6 @@ describe Puppet::Tools::Compile do
     end
   end
   describe 'when compiling a nodes catalog' do
-
     before :each do 
       @outputdir=tmpdir('catalog_out')
     end
@@ -111,20 +110,22 @@ describe Puppet::Tools::Compile do
         fh.write(YAML.dump(@nodeobj))
       end
       compile_loaded_node('node-daddy', @outputdir)
-      data = PSON.parse File.read("#{@outputdir}/node-daddy")
+      data = PSON.parse File.read("#{@outputdir}/node-daddy.pson")
       data.name.should == 'node-daddy'
       data.resource('Notify', 'bar').to_s.should == 'Notify[bar]'
     end
 
-    it 'should be possible to assign facts from a different node' do
+    it 'should be possible to assign facts from yaml to another node' do
       Puppet[:code]='node nodey {notify{$foo:}}'
       File.open(File.join(@yamldir, 'facts', 'fact-daddy.yaml'), 'w') do |fh|
         fh.write(YAML.dump(@factobj))
       end
-      compile_new_node('nodey', 'fact-daddy', @outputdir)
-      data = PSON.parse File.read("#{@outputdir}/nodey")
+      #require 'ruby-debug';debugger
+      compile_new_node('nodey', 'fact-daddy', @outputdir, format=:yaml)
+      data = PSON.parse File.read("#{@outputdir}/nodey.pson")
       data.name.should == 'nodey'
       data.resource('Notify', 'bar').to_s.should == 'Notify[bar]'
     end
+    it 'should be assign facts from facter by default'
   end
 end
