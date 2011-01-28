@@ -19,7 +19,8 @@ http://projects.puppetlabs.com/issues/5977
 
 This patch should be merged into 2.6.5
 
-If you use the patch, you should be able to store it as a plugin
+This should allow you to place it in a directory that is included in RUBYLIB.
+
 module.
 
 USAGE:
