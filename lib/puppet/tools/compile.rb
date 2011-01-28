@@ -26,13 +26,15 @@ module Puppet::Tools
         raise Puppet::Error, "Could not compile catalog for #{node.name}"
       end
       # TODO: maybe I don't want this in yaml
-      if format == 'pson'
+      if format.to_s == 'pson'
         PSON::pretty_generate(compiled_catalog, 
                               :allow_nan => true, 
                               :max_nesting => false
                              )
-      else 
+      elsif format.to_s == 'yaml' 
         compiled_catalog.to_yaml
+      else
+        raise Puppet::ArgumentError, "Unrecognized catalog format #{format}"
       end
     end
   
@@ -95,21 +97,22 @@ module Puppet::Tools
 
     # pass in the Puppet::node to compile and the dir where
     # the resulting catalog should be stored
-    def compile_and_save_catalog(node, outputdir)
+    def compile_and_save_catalog(node, outputdir, format=:pson)
       begin
-        compiled_catalog_yaml_string = compile_catalog_for_node(node)
+        compiled_catalog = compile_catalog_for_node(node)
         raise ArgumentError, "invalid outputdir #{outputdir}" unless outputdir =~ /\/\w+/
         Dir.mkdir(outputdir) unless File.directory?(outputdir)
         # NOTE:can I use the indirectory save call here?
-        File.open("#{outputdir}/#{node.name}", "w") { |catalog|
+        filename = "#{outputdir}/#{node.name}.#{format}"
+        File.open(filename, "w") { |catalog|
           #puts "writing #{outputdir}/#{node.name}"
-          catalog.write(compiled_catalog_yaml_string)
+          catalog.write(compiled_catalog)
         }
         Puppet.notice("wrote catalog for #{node.name} to #{outputdir}")
-        return true
+        return filename
       rescue Puppet::Error => e
         Puppet.err "#{node.name} failed to compile"
-        return false
+        return nil
       end
     end
   end
