@@ -45,6 +45,8 @@ class Puppet::Application::Tester < Puppet::Application
       # tests from yaml
       :test_nodes => nil,
       :node_type => :node,
+      # puppet related config
+      :modulepath => Puppet[:modulepath],
       # set log levels
       :verbose => false,
       :debug => false
@@ -77,6 +79,10 @@ class Puppet::Application::Tester < Puppet::Application
     raise Puppet::ArgumentError unless args =~ /(node|type)/
     options[:node_type]=args
   end
+
+  option('--modulepath MP') do |args|
+    options['modulepath']
+  end
   # TODO : these may not be required in 2.7.x
   option('--verbose', '-v')
   option('--debug', '-d')
@@ -107,8 +113,16 @@ class Puppet::Application::Tester < Puppet::Application
       Puppet::Util::Log.level = :notice
     end
     @env = Puppet::Node::Environment.new(Puppet['environment'])
-    @modulepath = @env[:modulepath]
-    @manifest = @env[:manifest]
+    if options[:modulepath]
+      @modulepath = options[:modulepath]
+    else
+      @modulepath = @env[:modulepath]
+    end
+    if options[:manifest]
+      @manifest = options[:manifest]
+    else
+      @manifest = @env[:manifest]
+    end
   end
 
   # main method
@@ -165,7 +179,7 @@ class Puppet::Application::Tester < Puppet::Application
     # NOTE - this does not work with environments
     testnames=build_fake_manifest(@modulepath)
     # iterate though all of the node names that present the tests
-    testnames.each do |node_name|
+    testnames.collect do |node_name|
       compile_new_node(node_name, options[:factnode], options[:outputdir])
     end
     testnames
