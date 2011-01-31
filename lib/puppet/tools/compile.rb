@@ -19,23 +19,13 @@ module Puppet::Tools
       classes.find { |loc| defined?(loc::Catalog) }::Catalog
     end
   
-    # given a Puppet::Node, compile a catalog
-    def compile_catalog_for_node(node, format='pson')
+    # given a Puppet::Node, compile and returns its catalog
+    def compile_catalog_for_node(node)
       compiler = get_catalog_compiler
       unless compiled_catalog = compiler.find(node.name, :use_node=>node)
         raise Puppet::Error, "Could not compile catalog for #{node.name}"
       end
-      # TODO: maybe I don't want this in yaml
-      if format.to_s == 'pson'
-        PSON::pretty_generate(compiled_catalog, 
-                              :allow_nan => true, 
-                              :max_nesting => false
-                             )
-      elsif format.to_s == 'yaml' 
-        compiled_catalog.to_yaml
-      else
-        raise Puppet::ArgumentError, "Unrecognized catalog format #{format}"
-      end
+      compiled_catalog
     end
   
     # Return a nodes facts
@@ -100,13 +90,25 @@ module Puppet::Tools
     def compile_and_save_catalog(node, outputdir, format=:pson)
       begin
         compiled_catalog = compile_catalog_for_node(node)
+        formatted_catalog_string = nil
+        if format.to_s == 'pson'
+          formatted_catalog_string = PSON::pretty_generate(
+            compiled_catalog, 
+            :allow_nan => true, 
+            :max_nesting => false
+          )
+        elsif format.to_s == 'yaml' 
+          formatted_catalog_string = compiled_catalog.to_yaml
+        else
+          raise Puppet::ArgumentError, "Unrecognized catalog format #{format}"
+        end
         raise ArgumentError, "invalid outputdir #{outputdir}" unless outputdir =~ /\/\w+/
         Dir.mkdir(outputdir) unless File.directory?(outputdir)
         # NOTE:can I use the indirectory save call here?
         filename = "#{outputdir}/#{node.name}.#{format}"
         File.open(filename, "w") { |catalog|
           #puts "writing #{outputdir}/#{node.name}"
-          catalog.write(compiled_catalog)
+          catalog.write(formatted_catalog_string)
         }
         Puppet.notice("wrote catalog for #{node.name} to #{outputdir}")
         return filename

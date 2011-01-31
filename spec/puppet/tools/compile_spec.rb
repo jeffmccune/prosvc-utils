@@ -101,11 +101,24 @@ describe Puppet::Tools::Compile do
   end
   describe 'when compiling a nodes catalog' do
     before :each do 
+      Puppet[:code]='node node-daddy {notify{$foo:}}'
       @outputdir=tmpdir('catalog_out')
     end
-    it 'should compile catalogs from pre-existing nodes' do
-      Puppet[:code]='node node-daddy {notify{$foo:}}'
-      @nodeobj.merge({'one'=>'1'})
+    it "should be able to compile a node" do
+      catalog = compile_catalog_for_node(@nodeobj)
+      catalog.name.should == 'node-daddy'
+      catalog.resource('Notify', 'bar').to_s.should == 'Notify[bar]'
+    end
+    it 'should compile catalogs to pson from pre-existing nodes' do
+      File.open(File.join(@yamldir, 'node', 'node-daddy.yaml'), 'w') do |fh|
+        fh.write(YAML.dump(@nodeobj))
+      end
+      compile_loaded_node('node-daddy', @outputdir)
+      data = PSON.parse File.read("#{@outputdir}/node-daddy.pson")
+      data.name.should == 'node-daddy'
+      data.resource('Notify', 'bar').to_s.should == 'Notify[bar]'
+    end
+    it 'should compile catalogs to yaml from pre-existing nodes' do
       File.open(File.join(@yamldir, 'node', 'node-daddy.yaml'), 'w') do |fh|
         fh.write(YAML.dump(@nodeobj))
       end
