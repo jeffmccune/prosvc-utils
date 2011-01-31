@@ -3,10 +3,14 @@
 # directories filled with catalogs
 # this is mostly a port of Ari's code
 require 'puppet/application'
+require 'puppet/tools/catalog'
+require 'puppet/external/pson/common'
 require 'yaml'
 require 'pp'
 
 class Puppet::Application::Diff < Puppet::Application
+  include PSON
+  include Puppet::Tools::Catalog
   # do I need to parse the config?
   should_parse_config
   #run_mode :master
@@ -48,8 +52,8 @@ class Puppet::Application::Diff < Puppet::Application
       unless File.exist?(r)
         raise Puppet::Error, "File #{r} does not exist"
       end
-      from = YAML.load(File.read(@from))
-      to = YAML.load(File.read(@to))
+      from = PSON.parse(File.read(@from))
+      to = PSON.parse(File.read(@to))
       titles = {}
       titles[:to] = extract_titles(to)
       titles[:from] = extract_titles(from)

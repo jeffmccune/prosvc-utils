@@ -5,19 +5,56 @@ require 'pp'
 # This module is meant to abstract functionality to 
 #  query and manipulate catalogs
 #
+# This is very specific to Ari's catalog diff tool...
+
+#
+# Helper library for interacting with catalogs.
+#   - catalogs are composed of:
+#     - classlist (.classes)
+#     - resource table, 
+#     - transient resources - are these things that get applied?
+#     - resource graph, relationship graph
+#     - aliases (do I care about these?)
+#
 
 module Puppet::Tools
   module Catalog
 
+    # returns all of the resources from a catalog
+    # options[:show_containers] - include containers in resource hash 
+    def get_resources(catalog, options = {})
+      catalog = catalog.to_ral
+      resources = options[:show_containers]? catalog.resources : get_graph(catalog)
+      resource_hash = {}
+      resources.each do |resource|
+        resource_hash[catalog.title_key_for_ref(resource.to_s)] = resource.to_hash
+      end
+      resource_hash
+    end
+
+    # this is the first attempt, for now I will ignore deps b/c they are hard.
+    def compare_catalog(from, to)
+      # basically just comparing the hash
+      # only require/before/notify/subscribe are special
+
+      # is there an operator for hash diff?
+
+      # basically, dependencies are hard
+      # if I get just the resources, they will not contain dependencies 
+      # from classes or defined resources
+
+    end
+
     # Creates an array of just the resource titles
     # it would be records like file["/foo"]
-    def extract_titles(resources)
-      resources.inject([]) do |titles, resource|
-        titles << resource[:resource_id]
+    def extract_titles(catalog, options={})
+      resources = options[:show_containers]? catalog.resources : get_graph(catalog)
+      resources.each do |resource|
+        titles << resource.to_s
       end
     end
 
-    def get_graph
+    def get_graph(catalog)
       catalog.relationship_graph.topsort
     end
 
