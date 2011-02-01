@@ -20,7 +20,7 @@ module Puppet::Tools
     end
 
     def parse_nodes()
-      known_resource_types.nodes.keys
+      known_resource_types.nodes
     end
 
     def parse_node(node)
@@ -39,7 +39,6 @@ module Puppet::Tools
 
     def get_node_ast
       parse_nodes.each do |node|
-        puts node
         get_scope(node)
         #puts known_resource_types.node(node).code.class #.each do |element| 
           #puts element.class
