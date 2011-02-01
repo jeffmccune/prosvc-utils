@@ -109,5 +109,61 @@ module Puppet::Tools
       diffresources = r1 - r2
       diffresources.each {|resource| puts "\t#{resource}"}
     end
+
+    # methods to be moved out of application
+    def load_catalog(filename, format)
+      begin
+        text = File.read(filename)
+        # attempt to load as pson, then attempt to load as yaml
+        if format == 'pson'
+          Puppet::Resource::Catalog.convert_from(Puppet::Resource::Catalog.default_format,text)
+        # catalog = Puppet::Resource::Catalog.pson_create(catalog) unless catalog.is_a?(Puppet::Resource::Catalog)
+        else 
+          catalog = YAML.load(text) unless catalog.is_a?(Puppet::Resource::Catalog)
+        end
+      rescue => detail
+        raise Puppet::Error, "Could not deserialize catalog from #{format}: #{detail}"
+      end
+      #catalog.to_ral 
+    end
+
+    # print a basic catalog summary
+    def catalog_summary(catalog)
+      puts "Catalog Summary"
+      puts "Catalog contains #{catalog.size} resources."
+      types = []
+      catalog.vertices.each {|vertex| types << vertex.type }
+      types.uniq.sort.each do |type|
+        puts "  -- #{type} contain #{filter(catalog,type).size} resources."
+      end
+      #pp catalog
+    end
+
+    # filter a catalog for a certain type of resource
+    def filter(catalog, filter)
+      cat = Puppet::Resource::Catalog.new()
+      catalog.vertices.select do |vertex| 
+        vertex.type == filter
+      end.each do |r|
+        cat.add_resource(r)
+      end
+      cat
+    end
+
+    # print out a catalog  
+    def catalog_print(catalog, options={})
+      if options[:to_manifest]
+        #puts catalog.to_resource
+        catalog.resources.each do |x|
+          puts x.to_manifest
+        end
+      elsif options[:to_dot]
+        pp catalog.to_dot
+      else
+        catalog.resources.each do |x|
+          puts x.to_s
+        end
+      end
+    end
   end
 end
