@@ -1,10 +1,12 @@
 # This application is for catalog analysis
 # This application should run as a client
 require 'puppet/application'
+require 'puppet/tools/catalog'
 require 'yaml'
 require 'pp'
 
 class Puppet::Application::Catalog < Puppet::Application
+  include Puppet::Tools::Catalog
   should_parse_config
 
   # do some initialization before arguments are processed
@@ -30,7 +32,7 @@ class Puppet::Application::Catalog < Puppet::Application
   # catalog application options
   option('--fetch')
   option('--file FILENAME') do |args|
-    options[:filename] = args
+    options[:file] = args
   end
   option('--format FILEFORMAT') do |args|
     options[:format] = args
@@ -52,61 +54,14 @@ class Puppet::Application::Catalog < Puppet::Application
   # main method
   def run_command
     file = options[:file] || "#{Puppet[:clientyamldir]}/catalog/#{Puppet[:certname]}.yaml"
-    catalog = load_catalog(file)
+    catalog = load_catalog(file, options[:format])
     if options[:filter]
-      catalog=filter(catalog)
+      catalog=filter(catalog, options[:filter])
     end
     if options[:summary] 
       catalog_summary(catalog)
     else
-      catalog_print(catalog)
-    end
-  end
-
-  # methods to be moved out of application
-  def load_catalog(filename)
-    begin
-      text = File.read(filename)
-      # attempt to load as pson, then attempt to load as yaml
-      catalog = Puppet::Resource::Catalog.convert_from(Puppet::Resource::Catalog.default_format,text) if options[:format] == 'pson'
-      # catalog = Puppet::Resource::Catalog.pson_create(catalog) unless catalog.is_a?(Puppet::Resource::Catalog)
-      catalog = YAML.load(text) unless catalog.is_a?(Puppet::Resource::Catalog) if options[:format] = 'yaml'
-    rescue => detail
-      raise Puppet::Error, "Could not deserialize catalog from #{options[:format]}: #{detail}"
-    end
-    #catalog.to_ral 
-  end
-
-  def filter(catalog, filter=options[:filter])
-    catalog = catalog.vertices.select{|vertex| vertex.type == filter}
-  end
-
-  def catalog_summary(catalog)
-    puts "Catalog Summary"
-    puts "Catalog contains #{catalog.size} resources."
-    types = []
-    catalog.vertices.each {|vertex| types << vertex.type }
-    types.uniq.sort.each do |type|
-      puts "  -- #{type} contain #{filter(catalog,type).size} resources."
-    end
-    #pp catalog
-  end
-
-  def catalog_print(catalog)
-    if options[:to_manifest]
-      #puts catalog.to_resource
-      catalog.each do |x|
-        puts x.to_manifest
-      end
-    elsif options[:to_dot]
-      #puts catalog.to_dot
-      catalog.each do |x|
-        pp x.to_dot
-      end
-    else
-      catalog.each do |x|
-        puts x.title
-      end
+      catalog_print(catalog, options)
     end
   end
 end
