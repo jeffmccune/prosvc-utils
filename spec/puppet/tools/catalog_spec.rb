@@ -24,7 +24,7 @@ describe 'Puppet::Tools::Catalog' do
   def mkresource(type, name)
     Puppet::Parser::Resource.new(type, name, :source => nil, :scope => @scope)
   end
-  def code_to_catalog(code, node_name, facts, classes={}) 
+  def code_to_catalog(code, node_name, facts={}, classes=[]) 
     node = Puppet::Node.new(node_name, :classes => classes)
     node.merge(facts)
     Puppet[:code]=code
@@ -59,7 +59,6 @@ describe 'Puppet::Tools::Catalog' do
   describe 'when getting a catlogs resources' do
     it 'should not return containers' do
       resources = get_resources(@catalog) 
-puts resources.inspect
       resources[["Notify", "name"]][:name].should == "name"
       resources[["Notify", "bar"]][:name].should == "bar"
       resources[["Node", "default"]].should be_nil
@@ -77,6 +76,31 @@ puts resources.inspect
       resources[["Class", "Foo"]].should_not be_nil
       resources[["Node", "default"]].should_not be_nil
       resources[["Bar", "name"]][:name].should == 'name'
+    end
+  end
+  describe 'when taking catalog diffs' do
+    before :each do
+      @foo_class1 = 'class foo1{notify{bar:message => baz}} include foo1'
+      @foo_class2 = 'class foo2{notify{bar:message => baz2}} include foo2'
+      @file1 = 'file{"/tmp/foo": mode => 777, owner => root, recurse => true}'
+      @file2 = 'file{"/tmp/foo": mode => 664, owner => root, group => sysadm, recurse => true}'
+      @service1 = 'service{foo: enable => true}'
+      @service2 = 'service{foo: enable => false}'
+      @host1 = 'host{bob: ensure => present, host_aliases => [1,2,3]}'
+      @host2 = 'host{bob: ensure => present, host_aliases => [1,2,3,4]}'
+    end
+    it 'should print resoures only in one catalog' do
+      code1 = "#{@foo_class1} #{@file1}"
+      code2 = "#{@foo_class2} #{@service1}"
+      puts code2
+      cat1 = code_to_catalog(code1, 'node1')  
+      cat2 = code_to_catalog(code2, 'node2')  
+      puts get_catalog_diffs(cat1, cat2).to_s
+    end
+    it 'should print param array differences' do
+      cat1 = code_to_catalog(@host1, 'node1')
+      cat2 = code_to_catalog(@host2, 'node2')
+      get_catalog_diffs(cat1, cat2)
     end
   end
 end

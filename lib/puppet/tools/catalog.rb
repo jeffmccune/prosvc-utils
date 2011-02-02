@@ -19,6 +19,64 @@ require 'pp'
 
 module Puppet::Tools
   module Catalog
+    class Diff
+      attr_reader :new_only, :old_only
+      def initialize(old, new)
+        @old_catalog = old
+        @new_catalog = new
+        @old_hash = get_resources(old, :show_container => false)
+        @new_hash = get_resources(new, :show_container => false)
+        @new_titles = @new_hash.keys
+        @old_titles = @old_hash.keys
+        @new_only = @new_titles - @old_titles
+        @old_only = @old_titles - @new_titles
+        @resource_diffs = get_resource_differences
+      end
+
+      def get_resource_differences
+        resource_diffs = {}
+        attr_diffs = (@new_titles & @old_titles).each do |title|
+          unless @new_hash[title] == @old_hash[title]
+            resource_diffs[title]={:old => @old_hash[title],
+                                   :new => @new_hash[title]} 
+          else
+            nil
+          end
+        end
+        resource_diffs
+      end
+
+      # get a string representation of unique resources 
+      # only contained in one of the two catalogs
+      def get_title_diff_array
+        titles = ['old', 'new'].collect do |name|
+          unique_strings = []
+          unique_strings.push("The following are only in #{name} catalog") 
+          titles = send("#{name}_only")
+          unless titles.empty?
+            titles.each do |title|
+              unique_strings.push "  - #{title[0]}[#{title[1]}]"
+            end
+          end
+          unique_strings
+        end
+      end
+
+      def to_s
+        str = ''
+        title_diffs = get_title_diff_array
+        str << format_diff(title_diffs[0], title_diffs[1])
+        str << "\n"
+        @resource_diffs.each do |k,v|
+          a1 = gather_resource_string(k[0], k[1], v[:old])
+          a1.unshift('Old Resource:')
+          a2 = gather_resource_string(k[0], k[1], v[:new])
+          a2.unshift('New Resource:')
+          str << format_diff(a1, a2) << "\n"
+        end
+        str
+      end
+    end
 
     # returns all of the resources from a catalog
     # options[:show_containers] - include containers in resource hash 
@@ -32,17 +90,50 @@ module Puppet::Tools
       resource_hash
     end
 
-    # this is the first attempt, for now I will ignore deps b/c they are hard.
-    def compare_catalog(from, to)
-      # basically just comparing the hash
-      # only require/before/notify/subscribe are special
+    def get_catalog_diffs(old, new)
+       Puppet::Tools::Catalog::Diff.new(old, new)
+    end
 
-      # is there an operator for hash diff?
+    def print_catalog_diffs(old, new)
+      diffs = get_catalog_diffs(old, new)
+      diffs.print_diffs
+    end
 
-      # basically, dependencies are hard
-      # if I get just the resources, they will not contain dependencies 
-      # from classes or defined resources
+    def format_diff(left, right, longest=100)
+      diffs = ''
+      left_longest = get_longest(left)
+      right_longest = get_longest(right)
+      diffs << '-------' << "\n"
+      total = left_longest + right_longest
+      if total > longest
+        print_array(left)
+        print_array(right)
+      else 
+        longer = left_longest > right_longest ? left : right
+        longer.each_index do |index|
+          if left.size > index
+            diffs << left[index].ljust(left_longest+1)
+          else
+            diffs << ''.ljust(left_longest+1)
+          end
+          diffs << "| "
+          diffs << right[index] << "\n" unless right.size <= index
+        end 
+      end
+      diffs << '-------' << "\n"
+    end
 
+    def get_longest(str_array)
+      str_array.inject(0) do |biggest, current|
+        current.size > biggest ? current.size : biggest 
+      end
+    end
+
+
+    def print_array(a)
+      a.each do |x|
+        puts "#{x}"
+      end
     end
 
     # Creates an array of just the resource titles
@@ -59,22 +150,24 @@ module Puppet::Tools
     end
 
   # Prints a resource in a way that looks like puppet code
-    def print_resource(resource)
-      puts "\t" + resource[:type].downcase + '{"' +  resource[:title] + '":'
-      resource[:parameters].each_pair do |k,v|
+    def gather_resource_string(type, title, params)
+      array = []
+      array.push "  " + type.downcase + '{"' +  title + '":'
+      params.each_pair do |k,v|
         # if v.is_a?(Hash)
         if v.is_a?(Array)
           indent = " " * k.to_s.size
-          puts "\t     #{k} => ["
+          array.push "     #{k} => ["
           v.each do |val|
-            puts "\t     #{indent}     #{val},"
+            array.push "     #{indent}     #{val},"
           end
-          puts "\t     #{indent}    ]"
+          array.push "       #{indent}  ]"
         else
-          puts "\t     #{k} => #{v}"
+          array.push "     #{k} => #{v}"
         end
       end
-      puts "\t}"
+      array.push "  }"
+      array
     end
 
     # Compares two sets of resources and prints the differences
