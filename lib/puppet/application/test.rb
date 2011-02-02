@@ -16,6 +16,11 @@
 # It also optionally can override the defaults with a specified manifest, 
 # modulepath, and yamldir.
 
+#
+# in order to run as non-root, you may have to set
+#   statedir, and vardir
+#
+
 require 'puppet/application'
 require 'puppet/tools/compile'
 require 'puppet/tools/catalog'
@@ -25,7 +30,7 @@ class Puppet::Application::Test < Puppet::Application
   include Puppet::Tools::Compile
   include Puppet::Tools::Catalog
   should_parse_config
-  # TODO do I need this?
+  # TODO what does this do?
   run_mode :master
 
   # do some initialization before arguments are processed
@@ -146,7 +151,6 @@ class Puppet::Application::Test < Puppet::Application
       exit_code = 1 if testnames.include?(nil)
       if options[:run_noop]
         statuses = noop_tests(testnames.compact)
-        puts statuses.inspect
         exit_code = 1 if statuses.include?('failed')
       end  
     end
@@ -210,12 +214,15 @@ class Puppet::Application::Test < Puppet::Application
       require 'puppet/configurer'
       configurer = Puppet::Configurer.new
       begin
-        status = configurer.run(:skip_plugin_download => true, :catalog => catalog).status
+        #status = configurer.run(:skip_plugin_download => true, :catalog => catalog).status
+        #Puppet.info("#{catalogfile} nooo apply result: #{status} ")
+        Puppet[:pluginsync] = false
+        status = configurer.run( :catalog => catalog)
+        'foo'
       rescue
-        Puppet.err('Exception when noop running catalog')
+        Puppet.err("Exception when noop running catalog #{$!}")
         'failed'
       end
-      #command = "puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop --modulepath #{@modulepath}"
     end
   end
 
