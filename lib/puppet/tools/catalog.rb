@@ -99,6 +99,16 @@ module Puppet::Tools
     # returns all of the resources from a catalog
     # options[:show_containers] - include containers in resource hash 
     def get_resources(catalog, options = {})
+      catalog.resources.each do |r|
+        unless r.title
+          # this is for 0.25 catalogs, this is ghetto,
+          # but I think it needs to be...
+          type = r.instance_variable_get(:@reference).type
+          title = r.instance_variable_get(:@reference).title
+          r.instance_variable_set(:@type, type)
+          r.instance_variable_set(:@title, title)
+        end
+      end
       catalog = catalog.to_ral if options[:to_ral]
       resources = options[:to_ral] ? get_graph(catalog) : catalog.resources
       resource_hash = {}
@@ -120,16 +130,20 @@ module Puppet::Tools
           raise Puppet::Error, "File #{r} does not exist"
         end
         unless format = options[:from_format]
-          format = File.extname(r)
-          if format =~ /^\.(pson|yaml)$/
-            format = $1
-          else
-            raise ArgumentError, "catalog format should be pson or yaml, not #{format}"
-          end
+          format = get_file_format(r)
         end
         load_catalog(r, format)
       end
       get_catalog_diffs(catalogs[0], catalogs[1], options)
+    end
+
+    def get_file_format(file)
+      format = File.extname(file)
+      if format =~ /^\.(pson|yaml)$/
+        format = $1
+      else
+        raise ArgumentError, "catalog format should be pson or yaml, not #{format}"
+      end
     end
 
     def print_catalog_diffs(old, new)
@@ -221,11 +235,8 @@ module Puppet::Tools
       begin
         text = File.read(filename)
         # attempt to load as pson, then attempt to load as yaml
-        if format == 'pson'
-          catalog = Puppet::Resource::Catalog.convert_from(Puppet::Resource::Catalog.default_format,text)
-        else 
-          catalog = YAML.load(text) unless catalog.is_a?(Puppet::Resource::Catalog)
-        end
+        catalog = Puppet::Resource::Catalog.convert_from(format,text)
+        catalog
       rescue => detail
         raise Puppet::Error, "Could not deserialize catalog from #{format}: #{detail}"
       end
