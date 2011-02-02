@@ -36,6 +36,21 @@ describe 'Puppet::Application::Test' do
   it 'should do stuff in pre-init and setup'
 
   it 'should do stuff in run command'
+  describe 'when assigning environments' do
+
+  end
+  describe 'when setting up' do
+
+  end
+  describe 'when running command' do
+    it 'should call check_tests when --check_tests is set' do
+
+    end
+    it 'should call compile test if --compile_test is set' do
+
+    end
+    it 'should run noop on tests if --run_noop is set'
+  end
 
 #  @options.each do |option|
 #    it "should declare handle_#{option} method" do
@@ -58,18 +73,6 @@ describe 'Puppet::Application::Test' do
          fh.write("class {#{@modules[i]}:}")
        end  
       end
-    end
-    describe 'when assigning environments' do
-
-    end
-    describe 'when running command' do
-      it 'should call check_tests when --check_tests is set' do
-
-      end
-      it 'should call compile test if --compile_test is set' do
-
-      end
-      it 'should run noop on tests if --run_noop is set'
     end
     describe 'when building fake manifests' do
       it 'should work with one modulepath' do
@@ -121,8 +124,21 @@ describe 'Puppet::Application::Test' do
       end
     end
   end
-  describe 'when compiling tests' do
+  describe 'when compiling catalogs' do
+    before :each do
+      # I can set up tons of stuff here, 
+      @modulepath1 = tmpdir()
+      @modulepath2 = tmpdir()
+    end
     it 'should be able to compile catalog'
     it 'should do something if catalogs fail to compile'
+    describe 'when running noop tests' do
+      it 'should be able to apply catalog' do
+        @tester.options.expects(:[]).with(:outputdir).returns('/var/lib/puppet/tests')
+        Puppet::Util::Log.newdestination(:console)
+        Puppet[:noop] = true
+        @tester.noop_tests(['gcc-gcc.pp'])
+      end
+    end 
   end
 end
