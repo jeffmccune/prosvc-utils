@@ -19,7 +19,7 @@ class Puppet::Application::Catalog < Puppet::Application
       # set log levels
       :verbose => false,
       :debug => false,
-      :format => "yaml",
+      :format => nil,
     }.each do |opt, value|
       options[opt]=value
     end
@@ -54,9 +54,10 @@ class Puppet::Application::Catalog < Puppet::Application
   # main method
   def run_command
     file = options[:file] || "#{Puppet[:clientyamldir]}/catalog/#{Puppet[:certname]}.yaml"
-    catalog = load_catalog(file, options[:format])
+    format = options[:format] || get_file_format(file)
+    catalog = load_catalog(file, format)
     if options[:filter]
-      catalog=filter(catalog, options[:filter])
+      catalog=filter(catalog, options[:filter].capitalize)
     end
     if options[:summary] 
       catalog_summary(catalog)
