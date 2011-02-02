@@ -40,9 +40,7 @@ class Puppet::Application::Diff < Puppet::Application
   option('--from_format FROM') do |args|
     options[:from_format]=args
   end
-  option('--show_containers') do |args|
-    options[:from_format]=args
-  end
+  option('--show_containers')
   # TODO : these may not be required in 2.7.x
   option('--verbose', '-v')
   option('--debug', '-d')
