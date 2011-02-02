@@ -55,6 +55,8 @@ class Puppet::Application::Test < Puppet::Application
     }.each do |opt, value|
       options[opt]=value
     end
+    # try to allow running as non-root
+    Puppet[:vardir] = ENV['HOME']
   end
   #  "The name of the node to get facts from, usually the fqdn",
   option('--factnode NODE') do |args|
