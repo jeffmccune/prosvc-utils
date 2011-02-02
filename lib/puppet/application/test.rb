@@ -131,15 +131,21 @@ class Puppet::Application::Test < Puppet::Application
 
   # main method
   def run_command
+    exit_code=0
     if options[:check_tests]
-      check_tests(@modulepath).each do |name|
+      size = check_tests(@modulepath).each do |name|
         Puppet.warning("#{name} is missing tests")
-      end
+      end.size
+      exit_code = 1 if size > 0
     end
     if options[:compile_tests]
       testnames = compile_tests
+      Puppet.debug "Compile test results: #{testnames.compact.inspect}"
+      exit_code = 1 if testnames.include?(nil)
       if options[:run_noop]
-        noop_tests(testnames)
+        statuses = noop_tests(testnames.compact)
+        puts statuses.inspect
+        exit_code = 1 if statuses.include?('failed')
       end  
     end
     # creates nodes based on the serialized facts.
@@ -154,6 +160,7 @@ class Puppet::Application::Test < Puppet::Application
         compile_loaded_node(node, options[:outputdir])
       end
     end
+    exit(exit_code)
   end
 
   # for all modules in the modulepath, returns a list of manifests that
@@ -186,24 +193,26 @@ class Puppet::Application::Test < Puppet::Application
     testnames.collect do |node_name|
       compile_new_node(node_name, options[:factnode], options[:outputdir])
     end
-    testnames
   end
 
   # iterates through testnames, and applies catalogs in outputdir
   # in noop mode
   # TODO - filter out catalogs that have execs with onlyif,unless
+  # returns the status of each run
   def noop_tests(testnames)
-    testnames.each do |test|
-      catalogfile="#{options[:outputdir]}/#{test}.pson"
-      # for performance, I would rather make API calls
-      # TODO - switch with API calls
+    testnames.collect do |catalogfile|
       catalog = load_catalog(catalogfile, 'pson')
       catalog = catalog.to_ral
       Puppet[:noop] = true
 
       require 'puppet/configurer'
       configurer = Puppet::Configurer.new
-      configurer.run :skip_plugin_download => true, :catalog => catalog
+      begin
+        status = configurer.run(:skip_plugin_download => true, :catalog => catalog).status
+      rescue
+        Puppet.err('Exception when noop running catalog')
+        'failed'
+      end
       #command = "puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop --modulepath #{@modulepath}"
     end
   end
