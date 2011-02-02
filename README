@@ -25,10 +25,10 @@ module.
 
 USAGE:
 
-puppet tester --check_tests [--environment ENV]
+puppet test --check_tests [--environment ENV]
   check that all manifests in the modulepath have corresponding tests manifests.
 
-puppet tester --compile_tests --factnode FOO [--run_noop] [--environment]
+puppet test --compile_tests --factnode FOO [--run_noop] [--environment]
   check that we can compile all of the manifests in the test directory.
   factnode - node whose facts we will use for all of the test compiles. This
     must exist in /var/lib/puppet/yaml/facts/FOO.yaml
@@ -36,7 +36,7 @@ puppet tester --compile_tests --factnode FOO [--run_noop] [--environment]
   run_noop - run the catalogs on noop after we compile.
     -environment to compile against
 
-puppet tester --test_nodes (NODE|--all) [--node_type (facts|node)]
+puppet test --test_nodes (NODE|--all) [--node_type (facts|node)]
   test_nodes - nodes to tests --all is all nodes
   node_type - whether the nodes are serialized from node yaml or facts yaml
 

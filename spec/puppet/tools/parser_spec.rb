@@ -33,6 +33,7 @@ describe 'Puppet::Tools::Parser' do
       @parser.parse_nodes.collect { |k,v| v.instance_eval{@name.inspect}}.should =~ ["/a\\w?[1-2]/"]
     end
     it 'should be able to parse node ast' do
+      @parser.code=@node_with_code
       @parser.get_node_ast
     end
   end

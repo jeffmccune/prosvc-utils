@@ -20,7 +20,7 @@ require 'puppet/application'
 require 'puppet/tools/compile'
 require 'find'
 
-class Puppet::Application::Tester < Puppet::Application
+class Puppet::Application::Test < Puppet::Application
   include Puppet::Tools::Compile
   should_parse_config
   # TODO do I need this?

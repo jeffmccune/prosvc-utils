@@ -2,9 +2,8 @@
 
 require 'puppet'
 require 'puppet/tools/compile'
-#require 'puppet/application/apply'
 require 'puppet/application'
-require 'puppet/application/tester'
+require 'puppet/application/test'
 require 'yaml'
 
 # find all of the puppet spec stuff (more than a little ghetto)
@@ -23,30 +22,13 @@ include Puppet::Tools::Compile
 include PuppetSpec
 include PuppetSpec::Files
 
-describe 'Puppet::Application::Tester' do
+describe 'Puppet::Application::Test' do
   before do
-#    @options = {
-#                  'factnode'      => 'NODE',
-#                  #'outputdir'     => 'DIR', 
-#                  #'run_noop'      => '', 
-#                  #'check_tests'   => '', 
-#                  #'compile_tests' => '', 
-#                  #'test_nodes'    => 'NODES' 
-#                  #'node_type'     => '', 
-#                  #'verbose'       => '', 
-#                  #'debug'         => '',
-#                  'module_path'   => 'PATH'
-#               }
-    require 'ruby-debug';debugger
-    require 'puppet/application/tester'
-    #Puppet::Util::CommandLine.new.require_application('tester')
-    #@app = Puppet::Application.find('tester')
-    @tester = Puppet::Application[:tester]
-    @tester = @app.new()
+    @tester = Puppet::Application[:test]
   end
 
   it "should ask Puppet::Application to parse Puppet configuration file" do
-    @app.should_parse_config?.should be_true
+    @tester.should_parse_config?.should be_true
   end
 
   it 'should have lots of options'
@@ -80,6 +62,15 @@ describe 'Puppet::Application::Tester' do
     describe 'when assigning environments' do
 
     end
+    describe 'when running command' do
+      it 'should call check_tests when --check_tests is set' do
+
+      end
+      it 'should call compile test if --compile_test is set' do
+
+      end
+      it 'should run noop on tests if --run_noop is set'
+    end
     describe 'when building fake manifests' do
       it 'should work with one modulepath' do
         @tester.build_fake_manifest(@modulepaths.first).should == ['bar-init.pp']
@@ -103,9 +94,9 @@ describe 'Puppet::Application::Tester' do
         @tester.build_fake_manifest(@deepdir).should == ['fooper-dev-bar.pp']
         Puppet[:code].should == "node 'fooper-dev-bar.pp' {\n class {'fooper::dev::bar':}\n}\n"
       end
-      it 'should work with environments, but it doesnt, sigh'
       it 'should not care if a modulepath does not exist' do
-
+        dir = File.join(tmpdir('path'), 'floppydoppy')
+        @tester.build_fake_manifest(dir).should == []
       end
     end
     describe 'when checking tests' do
@@ -129,5 +120,9 @@ describe 'Puppet::Application::Tester' do
        @tester.check_tests(@modulepaths.join(':')).should == ['bar-blah.pp', 'foo-blah.pp']
       end
     end
+  end
+  describe 'when compiling tests' do
+    it 'should be able to compile catalog'
+    it 'should do something if catalogs fail to compile'
   end
 end
