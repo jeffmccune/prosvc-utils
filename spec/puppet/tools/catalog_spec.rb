@@ -58,19 +58,19 @@ describe 'Puppet::Tools::Catalog' do
 
   describe 'when getting a catlogs resources' do
     it 'should not return containers' do
-      resources = get_resources(@catalog) 
+      resources = get_resources(@catalog, :to_ral => true) 
       resources[["Notify", "name"]][:name].should == "name"
       resources[["Notify", "bar"]][:name].should == "bar"
       resources[["Node", "default"]].should be_nil
       resources[["Bar", "name"]].should be_nil
     end
-    it 'should return containers when :show_containers => true' do
+    it 'should return containers unless :to_ral => false' do
       resources = get_resources(@catalog) 
       code = "#{@code_foo_class}\n#{@code_include_foo}\n#{@code_default_node}"
       code << "\n#{@code_define_bar}"
       code << "\n#{@code_declare_bar}"
       catalog =  code_to_catalog(code, 'foonode', {'one'=>'1'})
-      resources = get_resources(catalog, :show_containers => true) 
+      resources = get_resources(catalog) 
       resources[["Notify", "name"]][:name].should == "name"
       resources[["Notify", "bar"]][:name].should == "bar"
       resources[["Class", "Foo"]].should_not be_nil
@@ -82,25 +82,79 @@ describe 'Puppet::Tools::Catalog' do
     before :each do
       @foo_class1 = 'class foo1{notify{bar:message => baz}} include foo1'
       @foo_class2 = 'class foo2{notify{bar:message => baz2}} include foo2'
+      @hash_code1 = '
+class foo($foo={}){notify{bar:message => $foo}}
+class { foo: foo => {foo => bar, bar => baz}}'
+      @hash_code2 = '
+class foo($foo={}){notify{bar:message => $foo}}
+class { foo: foo => {foo => bar, bar => bazzer}}'
       @file1 = 'file{"/tmp/foo": mode => 777, owner => root, recurse => true}'
       @file2 = 'file{"/tmp/foo": mode => 664, owner => root, group => sysadm, recurse => true}'
       @service1 = 'service{foo: enable => true}'
       @service2 = 'service{foo: enable => false}'
       @host1 = 'host{bob: ensure => present, host_aliases => [1,2,3]}'
       @host2 = 'host{bob: ensure => present, host_aliases => [1,2,3,4]}'
+      @host3 = 'host{bob: ensure => present, host_aliases => [3,2,1]}'
     end
-    it 'should print resoures only in one catalog' do
+    it 'should print ral diffs when :to_ral => true' do
       code1 = "#{@foo_class1} #{@file1}"
       code2 = "#{@foo_class2} #{@service1}"
-      puts code2
       cat1 = code_to_catalog(code1, 'node1')  
       cat2 = code_to_catalog(code2, 'node2')  
-      puts get_catalog_diffs(cat1, cat2).to_s
+      diff = get_catalog_diffs(cat1, cat2, :to_ral => true)
+      diff.new_only.should == [['Service', 'foo']]
+      diff.old_only.should == [['File', '/tmp/foo']]
+      # I would rather use =~, but it fails if they are ==
+      diff.resource_diffs[["Notify", "bar"]][:old].should ==
+           {:name=>"bar", :message=>"baz", :withpath=>:false, :loglevel=>:notice}
+      diff.resource_diffs[["Notify", "bar"]][:new].should ==
+           {:name=>"bar", :message=>"baz2", :withpath=>:false, :loglevel=>:notice}
     end
-    it 'should print param array differences' do
+
+    it 'should print all resource diffs' do
+      code1 = "#{@foo_class1} #{@file1}"
+      code2 = "#{@foo_class2} #{@service1}"
+      cat1 = code_to_catalog(code1, 'node1')  
+      cat2 = code_to_catalog(code2, 'node2')  
+      catalog_diff = get_catalog_diffs(cat1, cat2)
+      catalog_diff.new_only.should =~ [['Service', 'foo'], ['Class', 'Foo2']]
+      catalog_diff.old_only.should =~ [['File', '/tmp/foo'], ['Class', 'Foo1']]
+      catalog_diff.resource_diffs[['Notify', 'bar']][:old].should ==
+        {:name=>"bar", :message=>"baz"}
+      catalog_diff.resource_diffs[['Notify', 'bar']][:new].should ==
+        {:name=>"bar", :message=>"baz2"}
+    end
+    it 'should detect array differences' do
       cat1 = code_to_catalog(@host1, 'node1')
       cat2 = code_to_catalog(@host2, 'node2')
-      get_catalog_diffs(cat1, cat2)
+      diff = get_catalog_diffs(cat1, cat2)
+      diff.new_only.should == []
+      diff.old_only.should == []
+      diff.resource_diffs[["Host", "bob"]][:old].should ==
+           {:name=>"bob",
+            :host_aliases=>["1", "2", "3"],
+            :ensure=>'present'}
+      diff.resource_diffs[["Host", "bob"]][:new].should ==
+           {:name=>"bob",
+            :host_aliases=>["1", "2", "3", "4"],
+            :ensure=>'present'}
     end
+    it 'should detect hash differences' do
+      cat1 = code_to_catalog(@hash_code1, 'node1')  
+      cat2 = code_to_catalog(@hash_code2, 'node2')  
+      diff = get_catalog_diffs(cat1, cat2)
+      #puts "|#{diff.to_s}|"
+    end
+    it 'should extract titles' do
+      cat1 = code_to_catalog(@host1, 'node1')
+      extract_titles(cat1).should =~ ["Host[bob]", "Class[main]", "Stage[main]", "Class[Settings]"]
+    end
+    it 'should abstract ral resources' do
+      cat1 = code_to_catalog(@host1, 'node1')
+      extract_titles(cat1, :to_ral => true).should == ["Host[bob]"]
+    end
+    it 'should format corretly with to_s'
+    it 'should not format when line > 100 chars'
+    it 'should be able to load and compare yaml to pson catalogs'
   end
 end
