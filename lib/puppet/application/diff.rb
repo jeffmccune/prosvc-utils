@@ -1,7 +1,10 @@
 # This application is for catalog diffs 
 # it should be able to do a diff between catalogs or
 # directories filled with catalogs
-# this is mostly a port of Ari's code
+# this is started out as a port of Ari's code, but it has gone well beyond this.
+
+# I dont care about 0.24.x
+# it needs to be able to support 0.25.x -> 2.6.x (and beyond!!)
 require 'puppet/application'
 require 'puppet/tools/catalog'
 require 'puppet/external/pson/common'
@@ -11,9 +14,6 @@ require 'pp'
 class Puppet::Application::Diff < Puppet::Application
   include PSON
   include Puppet::Tools::Catalog
-  # do I need to parse the config?
-  should_parse_config
-  #run_mode :master
 
   # do some initialization before arguments are processed
   def preinit 
@@ -22,10 +22,12 @@ class Puppet::Application::Diff < Puppet::Application
       exit(0)
     end
     {
-      # this is where the diffs will go
+      # I will serialize the diffs here.
       :outputdir => "#{Puppet[:vardir]}/tests/",
+      :from_format => nil,
       # set log levels
       :verbose => false,
+      :show_containers => false,
       :debug => false
     }.each do |opt, value|
       options[opt]=value
@@ -34,6 +36,12 @@ class Puppet::Application::Diff < Puppet::Application
   #  "directory to output yaml catalogs",
   option('--outputdir DIR') do |args|
     options[:outputdir]=args
+  end
+  option('--from_format FROM') do |args|
+    options[:from_format]=args
+  end
+  option('--show_containers') do |args|
+    options[:from_format]=args
   end
   # TODO : these may not be required in 2.7.x
   option('--verbose', '-v')
@@ -44,33 +52,50 @@ class Puppet::Application::Diff < Puppet::Application
     # there must be something to setup
     @from=command_line.args.shift
     @to=command_line.args.shift
+    unless @from and @to
+      raise ArgumentError, 'must pass 2 catalogs to compare as arguments'
+    end
+    Puppet::Util::Log.newdestination(:console)
+    if options[:debug]
+      Puppet::Util::Log.level = :debug
+    elsif options[:verbose]
+      Puppet::Util::Log.level = :info
+    else
+      Puppet::Util::Log.level = :notice
+    end
   end
 
   # main method
   def run_command
-    [@from, @to].each do |r|
-      unless File.exist?(r)
-        raise Puppet::Error, "File #{r} does not exist"
-      end
-      from = PSON.parse(File.read(@from))
-      to = PSON.parse(File.read(@to))
-      titles = {}
-      titles[:to] = extract_titles(to)
-      titles[:from] = extract_titles(from)
-      puts "Resource counts:"
-      puts "\tOld: #{titles[:from].size}"
-      puts "\tNew: #{titles[:to].size}"
+    exit_return = 0
+    exit_return = 1 if get_diffs
+    exit(exit_return)
+  end
 
-      if titles[:from].size > titles[:to].size
-        puts "Resources not in new catalog"
-        print_resource_diffs(titles[:from], titles[:to])
-      elsif titles[:to].size > titles[:from].size
-        puts "Resources not in old catalog"
-        print_resource_diffs(titles[:to], titles[:from])
-      else
-        puts "Catalogs contain the same resources by resource title"
-      end
-      compare_resources(from, to)
+  def get_diffs 
+    to_ral = ! options[:show_containers]
+    Puppet.notice "Diffing condensed ral catalogs" if to_ral
+    @catalog_diffs = get_catalog_file_diffs(@from, @to, :to_ral => to_ral)
+    Puppet.notice @catalog_diffs.to_s
+    if @catalog_diffs.diff_count > 0
+      Puppet.notice('Catalogs are not the same')
+      filename = "#{File.basename(@from)}_#{File.basename(@to)}.yaml"
+      write_to_yaml(@catalog_diffs, options[:outputdir], filename)
+      @catalog_diffs
+    else
+      nil 
     end
+  end
+
+  def write_to_yaml(diffs, dir, filename)
+    # NOTE - not sure if I want to require absolute path
+    raise ArgumentError, "invalid outputdir #{dir}" unless dir =~ /\/\w+/
+    file = File.join(dir, filename)
+    FileUtils.mkdir_p(dir)
+    # this yaml dump is lame
+    File.open(file, "w") { |fh|
+      fh.write YAML::dump(diffs)      
+    }
+    Puppet.info("wrote diff for to #{file}")
   end
 end

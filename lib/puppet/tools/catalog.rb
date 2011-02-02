@@ -20,17 +20,24 @@ require 'pp'
 module Puppet::Tools
   module Catalog
     class Diff
-      attr_reader :new_only, :old_only
-      def initialize(old, new)
+      attr_reader :old_hash, :new_hash, :new_only, :old_only, :resource_diffs, :diff_count
+      include Puppet::Tools::Catalog
+      def initialize(old, new, options = {})
         @old_catalog = old
         @new_catalog = new
-        @old_hash = get_resources(old, :show_container => false)
-        @new_hash = get_resources(new, :show_container => false)
+        @old_hash = get_resources(old, :to_ral => options[:to_ral])
+        @new_hash = get_resources(new, :to_ral => options[:to_ral])
         @new_titles = @new_hash.keys
         @old_titles = @old_hash.keys
         @new_only = @new_titles - @old_titles
         @old_only = @old_titles - @new_titles
         @resource_diffs = get_resource_differences
+        @diff_count = count_diffs
+      end
+
+      def count_diffs
+        diff_counter = 0
+        diff_counter + @new_only.size + @old_only.size + @resource_diffs.size
       end
 
       def get_resource_differences
@@ -64,25 +71,36 @@ module Puppet::Tools
 
       def to_s
         str = ''
-        title_diffs = get_title_diff_array
-        str << format_diff(title_diffs[0], title_diffs[1])
-        str << "\n"
-        @resource_diffs.each do |k,v|
-          a1 = gather_resource_string(k[0], k[1], v[:old])
-          a1.unshift('Old Resource:')
-          a2 = gather_resource_string(k[0], k[1], v[:new])
-          a2.unshift('New Resource:')
-          str << format_diff(a1, a2) << "\n"
+        if diff_count > 0
+          title_diffs = get_title_diff_array
+          str << format_diff(title_diffs[0], title_diffs[1])
+          str << "\n"
+          @resource_diffs.each do |k,v|
+            a1 = gather_resource_string(k[0], k[1], v[:old])
+            a1.unshift('Old Resource:')
+            a2 = gather_resource_string(k[0], k[1], v[:new])
+            a2.unshift('New Resource:')
+            str << format_diff(a1, a2)
+          end
+          str
+        else
+          'No Differences'
         end
-        str
+      end
+
+      def print_diffs
+        puts self.to_s
+      end
+      def write_diffs(outfile, format)
+
       end
     end
 
     # returns all of the resources from a catalog
     # options[:show_containers] - include containers in resource hash 
     def get_resources(catalog, options = {})
-      catalog = catalog.to_ral
-      resources = options[:show_containers]? catalog.resources : get_graph(catalog)
+      catalog = catalog.to_ral if options[:to_ral]
+      resources = options[:to_ral] ? get_graph(catalog) : catalog.resources
       resource_hash = {}
       resources.each do |resource|
         resource_hash[catalog.title_key_for_ref(resource.to_s)] = resource.to_hash
@@ -90,8 +108,28 @@ module Puppet::Tools
       resource_hash
     end
 
-    def get_catalog_diffs(old, new)
-       Puppet::Tools::Catalog::Diff.new(old, new)
+    # takes 2 Puppet::Resource:Catlog and returns
+    # 1 Puppet::Tools::Catalog::Diff
+    def get_catalog_diffs(old, new, options={})
+       Puppet::Tools::Catalog::Diff.new(old, new, options)
+    end
+
+    def get_catalog_file_diffs(oldfile, newfile, options={})
+      catalogs = [oldfile, newfile].collect do |r|
+        unless File.exist?(r)
+          raise Puppet::Error, "File #{r} does not exist"
+        end
+        unless format = options[:from_format]
+          format = File.extname(r)
+          if format =~ /^\.(pson|yaml)$/
+            format = $1
+          else
+            raise ArgumentError, "catalog format should be pson or yaml, not #{format}"
+          end
+        end
+        load_catalog(r, format)
+      end
+      get_catalog_diffs(catalogs[0], catalogs[1], options)
     end
 
     def print_catalog_diffs(old, new)
@@ -99,17 +137,23 @@ module Puppet::Tools
       diffs.print_diffs
     end
 
+    # TODO - this is a more generic diff format function, should
+    # moved out of here
+    # creates a string format that prings out arrays 
+    # side by side if they are less than longest characters.
     def format_diff(left, right, longest=100)
-      diffs = ''
       left_longest = get_longest(left)
       right_longest = get_longest(right)
-      diffs << '-------' << "\n"
+      diffs = "-------\n"
       total = left_longest + right_longest
       if total > longest
-        print_array(left)
-        print_array(right)
+        [left, right].each do |array|
+          array.each do |elem|
+            diffs << "#{elem}\n"
+          end
+        end
       else 
-        longer = left_longest > right_longest ? left : right
+        longer = left.size > right.size ? left : right
         longer.each_index do |index|
           if left.size > index
             diffs << left[index].ljust(left_longest+1)
@@ -117,10 +161,13 @@ module Puppet::Tools
             diffs << ''.ljust(left_longest+1)
           end
           diffs << "| "
-          diffs << right[index] << "\n" unless right.size <= index
+          if right.size > index
+            diffs << right[index]
+          end
+          diffs << "\n"
         end 
       end
-      diffs << '-------' << "\n"
+      diffs
     end
 
     def get_longest(str_array)
@@ -129,19 +176,12 @@ module Puppet::Tools
       end
     end
 
-
-    def print_array(a)
-      a.each do |x|
-        puts "#{x}"
-      end
-    end
-
     # Creates an array of just the resource titles
     # it would be records like file["/foo"]
     def extract_titles(catalog, options={})
-      resources = options[:show_containers]? catalog.resources : get_graph(catalog)
-      resources.each do |resource|
-        titles << resource.to_s
+      resources = get_resources(catalog, options)
+      resources.keys.collect do |title|
+        "#{title[0]}[#{title[1]}]"
       end
     end
 
@@ -154,9 +194,15 @@ module Puppet::Tools
       array = []
       array.push "  " + type.downcase + '{"' +  title + '":'
       params.each_pair do |k,v|
-        # if v.is_a?(Hash)
-        if v.is_a?(Array)
-          indent = " " * k.to_s.size
+        indent = " " * k.to_s.size
+        # TODO - only handles one level of arrays
+        if v.is_a?(Hash)
+          array.push "     #{k} => {"
+          v.each do |k, v|
+            array.push "     #{indent}     #{k}:#{v},"
+          end
+          array.push "       #{indent}  }"
+        elsif v.is_a?(Array)
           array.push "     #{k} => ["
           v.each do |val|
             array.push "     #{indent}     #{val},"
@@ -170,54 +216,19 @@ module Puppet::Tools
       array
     end
 
-    # Compares two sets of resources and prints the differences
-    # if the two sets do not include the same resource counts
-    # this will only print the resources available in both
-    def compare_resources(old, new)
-      puts "Individual Resource differences:"
-      old.each do |resource|
-        new_resource = new.find{|res| res[:resource_id] == resource[:resource_id]}
-        next if new_resource.nil?
-
-    # 0.24.x would set eg. on exec the command property to the same as name
-    # even when they were the same, 25 onward doesnt so get rid of these.
-    #
-    # there are no doubt many more
-    #resource[:parameters].delete(:name) unless new_resource[:parameters].include?(:name)
-    #resource[:parameters].delete(:command) unless new_resource[:parameters].include?(:command)
-    #resource[:parameters].delete(:path) unless new_resource[:parameters].include?(:path)
-
-        unless new_resource[:parameters] == resource[:parameters]
-          puts "Old Resource:"
-          print_resource(resource)
-          puts
-          puts "New Resource:"
-          print_resource(new_resource)
-        end
-      end
-    end
-
-    # Takes arrays of resource titles and shows the differences
-    def print_resource_diffs(r1, r2)
-      diffresources = r1 - r2
-      diffresources.each {|resource| puts "\t#{resource}"}
-    end
-
-    # methods to be moved out of application
+    # loads a catlaog from either pson or yaml
     def load_catalog(filename, format)
       begin
         text = File.read(filename)
         # attempt to load as pson, then attempt to load as yaml
         if format == 'pson'
-          Puppet::Resource::Catalog.convert_from(Puppet::Resource::Catalog.default_format,text)
-        # catalog = Puppet::Resource::Catalog.pson_create(catalog) unless catalog.is_a?(Puppet::Resource::Catalog)
+          catalog = Puppet::Resource::Catalog.convert_from(Puppet::Resource::Catalog.default_format,text)
         else 
           catalog = YAML.load(text) unless catalog.is_a?(Puppet::Resource::Catalog)
         end
       rescue => detail
         raise Puppet::Error, "Could not deserialize catalog from #{format}: #{detail}"
       end
-      #catalog.to_ral 
     end
 
     # print a basic catalog summary
@@ -229,7 +240,11 @@ module Puppet::Tools
       types.uniq.sort.each do |type|
         puts "  -- #{type} contain #{filter(catalog,type).size} resources."
       end
-      #pp catalog
+      pp catalog
+    end
+
+    def grab()
+
     end
 
     # filter a catalog for a certain type of resource

@@ -4,3 +4,7 @@ when running as non-root
       manifests without tests
       any compilation fails
       any catalog fails to run noop
+3. task for parsing every puppet file in a modulepath
+
+4. catalog dir diff
+5. node regex filters
