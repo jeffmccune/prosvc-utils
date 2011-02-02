@@ -44,7 +44,7 @@ class Puppet::Application::Tester < Puppet::Application
       :factnode => 'testnode',
       # tests from yaml
       :test_nodes => nil,
-      :node_type => :node,
+      :node_type => 'node',
       # puppet related config
       :modulepath => Puppet[:modulepath],
       # set log levels
@@ -76,12 +76,12 @@ class Puppet::Application::Tester < Puppet::Application
     end
   end
   option('--node_type TYPE') do |args|
-    raise Puppet::ArgumentError unless args =~ /(node|type)/
+    raise Puppet::ArgumentError unless args =~ /(node|facts)/
     options[:node_type]=args
   end
 
   option('--modulepath MP') do |args|
-    options['modulepath']
+    options[:modulepath]=args
   end
   # TODO : these may not be required in 2.7.x
   option('--verbose', '-v')
@@ -133,7 +133,7 @@ class Puppet::Application::Tester < Puppet::Application
       end
     end
     if options[:compile_tests]
-      compile_tests
+      testnames = compile_tests
       if options[:run_noop]
         noop_tests(testnames)
       end  
@@ -142,7 +142,7 @@ class Puppet::Application::Tester < Puppet::Application
     if options[:test_nodes]
       node_list=nil
       if options[:test_nodes] == :all
-        node_list = get_all_nodes(type)
+        node_list = get_all_nodes(options[:node_type])
       else
         node_list = options[:test_nodes]
       end
@@ -190,7 +190,7 @@ class Puppet::Application::Tester < Puppet::Application
   # TODO - filter out catalogs that have execs with onlyif,unless
   def noop_tests(testnames)
     testnames.each do |test|
-      catalogfile="#{options[:outputdir]}/#{test}"
+      catalogfile="#{options[:outputdir]}/#{test}.pson"
       # for performance, I would rather make API calls
       # TODO - switch with API calls
       puts `puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop`
