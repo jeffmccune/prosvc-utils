@@ -1,0 +1,6 @@
+when running as non-root
+1. had to chown /var/log/puppet from puppet:puppet
+2. return non zero under certian situations:
+      manifests without tests
+      any compilation fails
+      any catalog fails to run noop
