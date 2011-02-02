@@ -18,10 +18,12 @@
 
 require 'puppet/application'
 require 'puppet/tools/compile'
+require 'puppet/tools/catalog'
 require 'find'
 
 class Puppet::Application::Test < Puppet::Application
   include Puppet::Tools::Compile
+  include Puppet::Tools::Catalog
   should_parse_config
   # TODO do I need this?
   run_mode :master
@@ -193,7 +195,15 @@ class Puppet::Application::Test < Puppet::Application
       catalogfile="#{options[:outputdir]}/#{test}.pson"
       # for performance, I would rather make API calls
       # TODO - switch with API calls
-      puts `puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop`
+      catalog = load_catalog(catalogfile, 'pson')
+      catalog = catalog.to_ral
+      Puppet[:noop] = true
+
+      require 'puppet/configurer'
+      configurer = Puppet::Configurer.new
+      configurer.run :catalog => catalog
+
+      #puts `puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop`
     end
   end
 
