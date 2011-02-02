@@ -48,7 +48,7 @@ class Puppet::Application::Test < Puppet::Application
       :test_nodes => nil,
       :node_type => 'node',
       # puppet related config
-      :modulepath => Puppet[:modulepath],
+      :modulepath => nil,
       # set log levels
       :verbose => false,
       :debug => false
@@ -117,8 +117,10 @@ class Puppet::Application::Test < Puppet::Application
     @env = Puppet::Node::Environment.new(Puppet['environment'])
     if options[:modulepath]
       @modulepath = options[:modulepath]
+      Puppet[:modulepath] = @modulepath
     else
       @modulepath = @env[:modulepath]
+      Puppet[:modulepath] = @modulepath
     end
     if options[:manifest]
       @manifest = options[:manifest]
@@ -201,9 +203,8 @@ class Puppet::Application::Test < Puppet::Application
 
       require 'puppet/configurer'
       configurer = Puppet::Configurer.new
-      configurer.run :catalog => catalog
-
-      #puts `puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop`
+      configurer.run :skip_plugin_download => true, :catalog => catalog
+      #command = "puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop --modulepath #{@modulepath}"
     end
   end
 
@@ -235,6 +236,7 @@ class Puppet::Application::Test < Puppet::Application
     end
     # set all of the code as puppet's code
     Puppet[:code]=code
+    Puppet.debug(Puppet[:code])
     nodes
   end
 end

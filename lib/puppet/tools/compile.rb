@@ -77,10 +77,10 @@ module Puppet::Tools
 
     #
     # create a new node, merge facts,  and compile its catalog
-    #
-    def compile_new_node(node_name, factname, outputdir, format=:facter, classes=[])
+    # I probably need to be able to pass the node an environment
+    def compile_new_node(node_name, factname, outputdir, format=:facter, options={})
       facts=get_facts(factname, format)
-      node = Puppet::Node.new(node_name, :classes=>classes)
+      node = Puppet::Node.new(node_name, options)
       node.merge(facts)
       compile_and_save_catalog(node, outputdir)
     end
