@@ -15,6 +15,33 @@ class Puppet::Application::Diff < Puppet::Application
   include PSON
   include Puppet::Tools::Catalog
 
+
+  def help
+    puts 
+'
+= Synopsis
+
+  A tool for displaying differences between catalogs.
+     
+= Usage
+
+  puppet test [-d|--debug] [-v|--verbose] [--outputdir]
+  puppet diff CATALOG1 CATALOG2 [--outputdir DIR] [--show_containers]
+
+= Description
+
+  Diplays the differences between 2 catalogs.
+
+= Options
+
+  outputdir:: where to write the catalog diff output to.
+
+  show_containers:: rather we should show a complete catalog, or just the RAL
+    resources
+'
+  end
+
+
   # do some initialization before arguments are processed
   def preinit 
     trap(:INT) do

@@ -33,6 +33,55 @@ class Puppet::Application::Test < Puppet::Application
   # TODO what does this do?
   run_mode :master
 
+
+  def help
+    puts '
+ 
+= Synopsis
+
+A Puppet appliction for compiling catalogs.
+ 
+= Usage
+
+   puppet test [-d|--debug] [-v|--verbose] [--outputdir]
+   puppet test --check_tests [--modulepath MP]
+   puppet test --compile_tests [--run_noop] [--modulepath MP]
+   puppet test --test_nodes NODES [--node_type (facts|node)] [--modulepath MP]
+
+= Description
+
+This is used to compile catalogs for testing (maybe for other reasons later)
+
+= Options
+
+ check_tests:: checks your current modulepath for any manifests that do not
+    have corresponding test. prints a list of manifests missing test and returns 1.
+
+ compile_tests:: iterates though all module tests and generates a catalog for
+    each one in outputdir. By default uses facter to find facts for compilation.
+
+ test_nodes:: prints a catalog for a given node.
+
+ node_type:: used together with test_nodes, rather the node should be deserialized
+    from a node or facts yaml. Located the yaml in Puppet[:yamldir]
+
+ debug::
+   Enable full debugging.
+
+ verbose::
+ Enable verbosity.
+ 
+= Author
+  
+ Dan Bode
+ 
+= Copyright
+ 
+  Copyright (c) 2011 Puppet Labs, LLC
+  Licensed under the GPL v 2
+ '
+  end
+
   # do some initialization before arguments are processed
   def preinit 
     trap(:INT) do
@@ -160,7 +209,7 @@ class Puppet::Application::Test < Puppet::Application
       if options[:test_nodes] == :all
         node_list = get_all_nodes(options[:node_type])
       else
-        node_list = options[:test_nodes]
+        node_list = match_nodes(options[:test_nodes], options[:node_type])
       end
       node_list.each do |node|
         compile_loaded_node(node, options[:outputdir])
