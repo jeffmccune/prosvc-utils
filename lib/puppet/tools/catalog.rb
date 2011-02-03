@@ -284,7 +284,7 @@ module Puppet::Tools
       types.uniq.sort.each do |type|
         puts "  -- #{type} contain #{catalog_filter(catalog,type).size} resources."
       end
-      pp catalog
+      #pp catalog
     end
 
     # filter a catalog for a certain type of resource
