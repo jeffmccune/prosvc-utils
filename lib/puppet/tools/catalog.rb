@@ -103,6 +103,7 @@ module Puppet::Tools
         unless r.title
           # this is for 0.25 catalogs, this is ghetto,
           # but I think it needs to be...
+          Puppet.notice('converting 0.25.x resources to work with 2.6.x')
           type = r.instance_variable_get(:@reference).type
           title = r.instance_variable_get(:@reference).title
           r.instance_variable_set(:@type, type)
