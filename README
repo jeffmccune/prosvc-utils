@@ -41,3 +41,22 @@ puppet test --test_nodes (NODE|--all) [--node_type (facts|node)]
   node_type - whether the nodes are serialized from node yaml or facts yaml
 
 NOTE - by default all catalogs are compiled to '/var/lib/puppet/tests'
+
+
+puppet parser - parses puppet code.
+  puppet parser --get_nodes MANIFEST
+    returns a list of all nodes in a MANIFEST
+
+puppet catalog CATALOG
+  - prints the titles from a resource
+puppet catalog --filter TYPE CATALOG
+  - print all resources of a certain type from a catalog
+puppet catalog CATALOG --summary
+  - shows how many resoures of each type exist in a catalog
+
+
+puppet diff CATALOG1 CATALOG2
+  - this can show the differences in resources
+  - it works for the simples use cases, except:
+     - requires that puppet be able to find source locations for files (when in to_ral mode)
+     - still needs to little work to support 0.25.x
