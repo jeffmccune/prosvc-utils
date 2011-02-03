@@ -102,8 +102,8 @@ class { foo: foo => {foo => bar, bar => bazzer}}'
       cat1 = code_to_catalog(code1, 'node1')  
       cat2 = code_to_catalog(code2, 'node2')  
       diff = get_catalog_diffs(cat1, cat2, :to_ral => true)
-      diff.new_only.should == [['Service', 'foo']]
-      diff.old_only.should == [['File', '/tmp/foo']]
+      diff.title_diffs[:old].should == [['File', '/tmp/foo']]
+      diff.title_diffs[:new].should == [['Service', 'foo']]
       # I would rather use =~, but it fails if they are ==
       diff.resource_diffs[["Notify", "bar"]][:old].should ==
            {:name=>"bar", :message=>"baz", :withpath=>:false, :loglevel=>:notice}
@@ -117,8 +117,8 @@ class { foo: foo => {foo => bar, bar => bazzer}}'
       cat1 = code_to_catalog(code1, 'node1')  
       cat2 = code_to_catalog(code2, 'node2')  
       catalog_diff = get_catalog_diffs(cat1, cat2)
-      catalog_diff.new_only.should =~ [['Service', 'foo'], ['Class', 'Foo2']]
-      catalog_diff.old_only.should =~ [['File', '/tmp/foo'], ['Class', 'Foo1']]
+      catalog_diff.title_diffs[:new].should =~ [['Service', 'foo'], ['Class', 'Foo2']]
+      catalog_diff.title_diffs[:old].should =~ [['File', '/tmp/foo'], ['Class', 'Foo1']]
       catalog_diff.resource_diffs[['Notify', 'bar']][:old].should ==
         {:name=>"bar", :message=>"baz"}
       catalog_diff.resource_diffs[['Notify', 'bar']][:new].should ==
@@ -128,8 +128,8 @@ class { foo: foo => {foo => bar, bar => bazzer}}'
       cat1 = code_to_catalog(@host1, 'node1')
       cat2 = code_to_catalog(@host2, 'node2')
       diff = get_catalog_diffs(cat1, cat2)
-      diff.new_only.should == []
-      diff.old_only.should == []
+      diff.title_diffs[:new].should == []
+      diff.title_diffs[:old].should == []
       diff.resource_diffs[["Host", "bob"]][:old].should ==
            {:name=>"bob",
             :host_aliases=>["1", "2", "3"],

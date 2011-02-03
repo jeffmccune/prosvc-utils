@@ -19,38 +19,58 @@ require 'pp'
 
 module Puppet::Tools
   module Catalog
+    #
+    # This class is intended to store catalog differences
+    # so that we can query information about the differences
+    #
     class Diff
-      attr_reader :old_hash, :new_hash, :new_only, :old_only, :resource_diffs, :diff_count
+      attr_reader :old_hash, :new_hash, 
+                  :title_diffs, :resource_diffs, :diff_count
       include Puppet::Tools::Catalog
+
       def initialize(old, new, options = {})
+        @to_ral = options[:to_ral] || false 
         @old_catalog = old
         @new_catalog = new
-        @old_hash = get_resources(old, :to_ral => options[:to_ral])
-        @new_hash = get_resources(new, :to_ral => options[:to_ral])
-        @new_titles = @new_hash.keys
-        @old_titles = @old_hash.keys
-        @new_only = @new_titles - @old_titles
-        @old_only = @old_titles - @new_titles
+
+        # convert the resources into hashes
+        @old_hash = get_resources(old, :to_ral => @to_ral)
+        @new_hash = get_resources(new, :to_ral => @to_ral)
+
+        # get the differences
+        @title_diffs = get_title_diffs(@old_hash.keys, @new_hash.keys)
         @resource_diffs = get_resource_differences
         @diff_count = count_diffs
       end
 
-      def count_diffs
-        diff_counter = 0
-        diff_counter + @new_only.size + @old_only.size + @resource_diffs.size
+      # returns a hash with titles only in new, old, and both
+      def get_title_diffs(old_titles, new_titles)
+        {
+          :new => new_titles - old_titles,
+          :old => old_titles - new_titles,
+          :both => new_titles & old_titles
+        }
       end
-
+      
+      # return a hash of the resources that are contained in both
+      # catalogs that are not the same.
+      # {title => {:old => params, :new => params}}
       def get_resource_differences
         resource_diffs = {}
-        attr_diffs = (@new_titles & @old_titles).each do |title|
+        @title_diffs[:both].each do |title|
           unless @new_hash[title] == @old_hash[title]
             resource_diffs[title]={:old => @old_hash[title],
                                    :new => @new_hash[title]} 
-          else
-            nil
           end
         end
         resource_diffs
+      end
+
+      # count the number of differences between two resources
+      def count_diffs
+        diff_counter = 0
+        title_count = @title_diffs[:new].size + @title_diffs[:old].size
+        title_count + @resource_diffs.size
       end
 
       # get a string representation of unique resources 
@@ -59,7 +79,7 @@ module Puppet::Tools
         titles = ['old', 'new'].collect do |name|
           unique_strings = []
           unique_strings.push("The following are only in #{name} catalog") 
-          titles = send("#{name}_only")
+          titles = title_diffs["#{name.to_sym}"]
           unless titles.empty?
             titles.each do |title|
               unique_strings.push "  - #{title[0]}[#{title[1]}]"
@@ -69,6 +89,7 @@ module Puppet::Tools
         end
       end
 
+      # convert the resources diffs into strings.
       def to_s
         str = ''
         if diff_count > 0
@@ -91,6 +112,8 @@ module Puppet::Tools
       def print_diffs
         puts self.to_s
       end
+
+      # write the differences to a file
       def write_diffs(outfile, format)
 
       end
@@ -125,6 +148,9 @@ module Puppet::Tools
        Puppet::Tools::Catalog::Diff.new(old, new, options)
     end
 
+    # serialze 2 catalgos from files and return
+    # the Puppet::Tools::Catalog::Diffs that represents the differences
+    # between them
     def get_catalog_file_diffs(oldfile, newfile, options={})
       catalogs = [oldfile, newfile].collect do |r|
         unless File.exist?(r)
@@ -138,27 +164,13 @@ module Puppet::Tools
       get_catalog_diffs(catalogs[0], catalogs[1], options)
     end
 
-    def get_file_format(file)
-      format = File.extname(file)
-      if format =~ /^\.(pson|yaml)$/
-        format = $1
-      else
-        raise ArgumentError, "catalog format should be pson or yaml, not #{format}"
-      end
-    end
-
-    def print_catalog_diffs(old, new)
-      diffs = get_catalog_diffs(old, new)
-      diffs.print_diffs
-    end
-
     # TODO - this is a more generic diff format function, should
     # moved out of here
     # creates a string format that prings out arrays 
     # side by side if they are less than longest characters.
     def format_diff(left, right, longest=100)
-      left_longest = get_longest(left)
-      right_longest = get_longest(right)
+      left_longest = left.max_by {|x| x.size}
+      right_longest = right.max_by {|x| x.size}
       diffs = "-------\n"
       total = left_longest + right_longest
       if total > longest
@@ -185,12 +197,6 @@ module Puppet::Tools
       diffs
     end
 
-    def get_longest(str_array)
-      str_array.inject(0) do |biggest, current|
-        current.size > biggest ? current.size : biggest 
-      end
-    end
-
     # Creates an array of just the resource titles
     # it would be records like file["/foo"]
     def extract_titles(catalog, options={})
@@ -204,7 +210,7 @@ module Puppet::Tools
       catalog.relationship_graph.topsort
     end
 
-  # Prints a resource in a way that looks like puppet code
+    # converts a resource into a array of strings
     def gather_resource_string(type, title, params)
       array = []
       array.push "  " + type.downcase + '{"' +  title + '":'
@@ -235,9 +241,7 @@ module Puppet::Tools
     def load_catalog(filename, format)
       begin
         text = File.read(filename)
-        # attempt to load as pson, then attempt to load as yaml
-        catalog = Puppet::Resource::Catalog.convert_from(format,text)
-        catalog
+        Puppet::Resource::Catalog.convert_from(format,text)
       rescue => detail
         raise Puppet::Error, "Could not deserialize catalog from #{format}: #{detail}"
       end
@@ -253,10 +257,6 @@ module Puppet::Tools
         puts "  -- #{type} contain #{filter(catalog,type).size} resources."
       end
       pp catalog
-    end
-
-    def grab()
-
     end
 
     # filter a catalog for a certain type of resource
