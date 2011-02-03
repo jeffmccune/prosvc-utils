@@ -75,7 +75,7 @@ class Puppet::Application::Diff < Puppet::Application
     Puppet.notice "Diffing condensed ral catalogs" if to_ral
     @catalog_diffs = get_catalog_file_diffs(@from, @to, :to_ral => to_ral)
     Puppet.notice @catalog_diffs.to_s
-    if @catalog_diffs.diff_count > 0
+    if @catalog_diffs.count_diffs > 0
       Puppet.notice('Catalogs are not the same')
       filename = "#{File.basename(@from)}_#{File.basename(@to)}.yaml"
       write_to_yaml(@catalog_diffs, options[:outputdir], filename)

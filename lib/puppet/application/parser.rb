@@ -10,7 +10,7 @@ class Puppet::Application::Parser < Puppet::Application
   def preinit 
     @parser = Puppet::Tools::Parser.new()
     trap(:INT) do
-      $stderr.puts "puppet catalog: cancelling ..."  
+      $stderr.puts "puppet parser, received SYSINT: cancelling ..."  
       exit(1)
     end
     {
@@ -27,9 +27,6 @@ class Puppet::Application::Parser < Puppet::Application
   option('--verbose', '-v')
   option('--debug', '-d')
 
-  option('--file FILENAME') do |args|
-    options[:file] = args
-  end
   option('--outputdir DIR') do |args|
     options[:outputdir] = args
   end
@@ -37,24 +34,30 @@ class Puppet::Application::Parser < Puppet::Application
   option('--create_yaml')
 
   def setup 
-    FileUtils.mkdir_p(options[:outputdir]) unless File.exists?(options[:outputdir])
-    raise Puppet::Error, 'must specify --file FILENAME to parse' unless options[:file]
+    @file=command_line.args.shift
+    raise Puppet::Error, 'must specify FILENAME to parse' unless @file
+    # this is kind of strange, it dumps empty yaml files
+    if options[:create_yaml] and ! File.exists?(options[:outputdir])
+      FileUtils.mkdir_p(options[:outputdir])
+    end
   end
 
   # main method
   def run_command
-    @text = File.read(options[:file])
+    @text = File.read(@file)
     if options[:get_nodes] 
       @parser.code=@text
       # this will not work well with regex
       nodes = @parser.parse_nodes.keys
-      puts "Found the following nodes"
+      puts "Found the following nodes" if nodes.size > 0
       nodes.each do |node|
         puts node
-        filename = File.join(options[:outputdir], "#{node}.yaml")
-        puts "Writing file: #{filename}"
-        puts "#{filename} already exists" if File.exists?(filename)
-        FileUtils.touch(filename)
+        if options[:create_yaml]
+          filename = File.join(options[:outputdir], "#{node}.yaml")
+          puts "Writing file: #{filename}"
+          puts "#{filename} already exists" if File.exists?(filename)
+          FileUtils.touch(filename)
+        end
       end
     else
       raise Puppet::Error, 'can only get nodes, must pass --get_nodes'
