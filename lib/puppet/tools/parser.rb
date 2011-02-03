@@ -41,7 +41,7 @@ module Puppet::Tools
       parse_nodes.each do |node|
         get_scope(node)
         puts node
-        require 'ruby-debug';debugger
+        #require 'ruby-debug';debugger
         puts known_resource_types.node(node).inspect #.each do |element| 
           #puts element.class
         #end

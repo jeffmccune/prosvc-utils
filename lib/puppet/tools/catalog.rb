@@ -1,5 +1,3 @@
-require 'yaml'
-require 'pp'
 
 #
 # This module is meant to abstract functionality to 
@@ -17,15 +15,19 @@ require 'pp'
 #     - aliases (do I care about these?)
 #
 
+require 'yaml'
+require 'puppet/tools/fileutils'
+
 module Puppet::Tools
   module Catalog
+    include Puppet::Tools::FileUtils
     #
     # This class is intended to store catalog differences
     # so that we can query information about the differences
     #
     class Diff
       attr_reader :old_hash, :new_hash, 
-                  :title_diffs, :resource_diffs, :diff_count
+                  :title_diffs, :resource_diffs
       include Puppet::Tools::Catalog
 
       def initialize(old, new, options = {})
@@ -40,7 +42,6 @@ module Puppet::Tools
         # get the differences
         @title_diffs = get_title_diffs(@old_hash.keys, @new_hash.keys)
         @resource_diffs = get_resource_differences
-        @diff_count = count_diffs
       end
 
       # returns a hash with titles only in new, old, and both
@@ -79,7 +80,7 @@ module Puppet::Tools
         titles = ['old', 'new'].collect do |name|
           unique_strings = []
           unique_strings.push("The following are only in #{name} catalog") 
-          titles = title_diffs["#{name.to_sym}"]
+          titles = @title_diffs[name.to_sym]
           unless titles.empty?
             titles.each do |title|
               unique_strings.push "  - #{title[0]}[#{title[1]}]"
@@ -92,7 +93,7 @@ module Puppet::Tools
       # convert the resources diffs into strings.
       def to_s
         str = ''
-        if diff_count > 0
+        if count_diffs > 0
           title_diffs = get_title_diff_array
           str << format_diff(title_diffs[0], title_diffs[1])
           str << "\n"
@@ -114,6 +115,7 @@ module Puppet::Tools
       end
 
       # write the differences to a file
+      # TODO - implement
       def write_diffs(outfile, format)
 
       end
@@ -122,22 +124,26 @@ module Puppet::Tools
     # returns all of the resources from a catalog
     # options[:show_containers] - include containers in resource hash 
     def get_resources(catalog, options = {})
+      is_25 = false
       catalog.resources.each do |r|
         unless r.title
           # this is for 0.25 catalogs, this is ghetto,
           # but I think it needs to be...
-          Puppet.notice('converting 0.25.x resources to work with 2.6.x')
+          is_25 = true
           type = r.instance_variable_get(:@reference).type
           title = r.instance_variable_get(:@reference).title
           r.instance_variable_set(:@type, type)
           r.instance_variable_set(:@title, title)
         end
       end
+      Puppet.notice('converting 0.25.x catalog') if is_25
       catalog = catalog.to_ral if options[:to_ral]
       resources = options[:to_ral] ? get_graph(catalog) : catalog.resources
       resource_hash = {}
       resources.each do |resource|
-        resource_hash[catalog.title_key_for_ref(resource.to_s)] = resource.to_hash
+        key = catalog.title_key_for_ref(resource.to_s)
+        key[1].downcase!
+        resource_hash[key] = resource.to_hash
       end
       resource_hash
     end
@@ -169,8 +175,8 @@ module Puppet::Tools
     # creates a string format that prings out arrays 
     # side by side if they are less than longest characters.
     def format_diff(left, right, longest=100)
-      left_longest = left.max_by {|x| x.size}
-      right_longest = right.max_by {|x| x.size}
+      left_longest = get_longest(left)
+      right_longest = get_longest(right)
       diffs = "-------\n"
       total = left_longest + right_longest
       if total > longest
@@ -195,6 +201,13 @@ module Puppet::Tools
         end 
       end
       diffs
+    end
+
+     # I have to write this since max_by is not supported in 1.8.5
+    def get_longest(str_array)
+      str_array.inject(0) do |biggest, current|
+        current.size > biggest ? current.size : biggest 
+      end
     end
 
     # Creates an array of just the resource titles
@@ -247,6 +260,21 @@ module Puppet::Tools
       end
     end
 
+    # returns the yaml or pson format of a catalog
+    def format_catalog(catalog, format='pson')
+      if format.to_s == 'pson'
+        formatted_catalog_string = PSON::pretty_generate(
+          catalog,
+          :allow_nan => true,
+          :max_nesting => false
+        )
+      elsif format.to_s == 'yaml'
+        formatted_catalog_string = catalog.to_yaml
+      else
+        raise Puppet::ArgumentError, "Unrecognized catalog format #{format}"
+      end
+    end
+
     # print a basic catalog summary
     def catalog_summary(catalog)
       puts "Catalog Summary"
@@ -254,13 +282,13 @@ module Puppet::Tools
       types = []
       catalog.vertices.each {|vertex| types << vertex.type }
       types.uniq.sort.each do |type|
-        puts "  -- #{type} contain #{filter(catalog,type).size} resources."
+        puts "  -- #{type} contain #{catalog_filter(catalog,type).size} resources."
       end
       pp catalog
     end
 
     # filter a catalog for a certain type of resource
-    def filter(catalog, filter)
+    def catalog_filter(catalog, filter)
       cat = Puppet::Resource::Catalog.new()
       catalog.vertices.select do |vertex| 
         vertex.type == filter
