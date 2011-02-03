@@ -282,7 +282,7 @@ module Puppet::Tools
       types = []
       catalog.vertices.each {|vertex| types << vertex.type }
       types.uniq.sort.each do |type|
-        puts "  -- #{type} contain #{catalog_filter(catalog,type).size} resources."
+        puts "  -- #{catalog_filter(catalog,type).size} resources of type: #{type}"
       end
       #pp catalog
     end
