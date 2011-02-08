@@ -1,0 +1,37 @@
+#! /usr/bin/env ruby
+#
+
+require 'rubygems'
+require 'trollop'
+require 'puppet'
+require 'pp'
+
+
+@opts = Trollop::options do
+  banner <<-EOS
+## Overview ##
+
+Load a catalog...
+
+## Options ##
+EOS
+  opt :catalogs, "YAML catalogs to load", :default => [ "catalog.yaml" ]
+  opt :inspect, "Call the inspect method on the catalog", :default => true
+end
+
+$stdout.sync = true
+
+@opts.catalogs.each do |catalog_file|
+  begin
+    catalog = YAML.load_file(catalog_file)
+    if @opts.inspect then
+      catalog.inspect
+    end
+  rescue
+    puts "#{catalog_file}: FAILURE"
+  else
+    puts "#{catalog_file}: LOADED"
+  end
+end
+
+# vim:ft=ruby
