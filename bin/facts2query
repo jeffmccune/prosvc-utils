@@ -1,0 +1,63 @@
+#! /usr/bin/env ruby
+#
+
+require 'rubygems'
+require 'trollop'
+require 'puppet'
+require 'pp'
+
+
+@opts = Trollop::options do
+  banner <<-EOS
+## Overview ##
+
+This script loads a set of facts from a YAML cache and outputs a string
+suitable for use in a HTTP GET catalog request.
+
+This is designed to produce a shell script as output.  You should configure
+a certificate and auth.conf to allow the certificate to access any node
+catalog.
+
+--- auth.conf.orig      2011-02-02 23:01:50.000000000 -0500
++++ auth.conf   2011-02-02 23:02:10.000000000 -0500
+@@ -52,5 +52,5 @@
+ path ~ ^/catalog/([^/]+)$
+ method find
+-allow $1
++allow *
+
+You'll want to generate a certificate for this purpose:
+
+    envpuppet puppet cert --confdir ~/.puppet/conf_5755 --configprint ssldir
+    /Users/jeff/.puppet/var/ssl
+    envpuppet puppet cert --confdir ~/.puppet/conf_5755 --generate facts2query
+
+## Options ##
+EOS
+  opt :facts, "YAML Facts to load", :default => [ "facts.yaml" ]
+  opt :url, "Base URL to contact puppet", :default => "https://puppet:8140/production/catalog"
+  opt :command, "Command to use with the constructed URL.", :default => "curl -H \"Accept: yaml\" --cacert ~/.puppet/var/ssl/certs/ca.pem --cert ~/.puppet/var/ssl/certs/facts2query.pem --cert-type PEM --key ~/.puppet/var/ssl/private_keys/facts2query.pem --key-type PEM"
+end
+
+all_facts = @opts.facts.collect do |facts_yaml|
+  YAML.load_file(facts_yaml)
+end
+
+all_facts.each do |facts|
+  if facts.support_format?(:b64_zlib_yaml)
+    format = :b64_zlib_yaml
+  else
+    format = :yaml
+  end
+
+  # Yes, escaping twice is required.  I have no idea why.
+  facts_text = CGI.escape(CGI.escape(facts.render(format)))
+  format_text = CGI.escape(format.to_s)
+
+  # Put the string command
+  url = "#{@opts.url}/#{facts.name}?facts_format=#{format_text}&facts=#{facts_text}"
+  puts "#{@opts.command} -o #{facts.name}_catalog.yaml --dump-header #{facts.name}_headers.txt '#{url}'"
+
+end
+
+# vim:ft=ruby
