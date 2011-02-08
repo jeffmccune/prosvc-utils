@@ -1,0 +1,25 @@
+#! /usr/bin/env ruby
+#
+
+require 'rubygems'
+require 'trollop'
+require 'fastercsv'
+
+
+@opts = Trollop::options do
+  banner <<-EOS
+Generate authorized_keys from the account registry.
+EOS
+  opt :file, "CSV File of accounts to load", :default => "User Account Registry.csv"
+  opt :verify, "Verify the keys before writing", :default => true
+end
+
+# FIXME, we should check GPG signatures.
+raise NotImplementedError, "Please add verification!"  if @opts[:verify]
+
+@table = FasterCSV.read(@opts[:file])
+
+# The SSH public key is in row[2]
+@table.each { |row| puts row[2] if row[2] =~ /ssh/ }
+
+# vim:ft=ruby
