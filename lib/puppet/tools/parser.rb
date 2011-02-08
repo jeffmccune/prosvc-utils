@@ -40,7 +40,9 @@ module Puppet::Tools
     def get_node_ast
       parse_nodes.each do |node|
         get_scope(node)
-        #puts known_resource_types.node(node).code.class #.each do |element| 
+        puts node
+        #require 'ruby-debug';debugger
+        puts known_resource_types.node(node).inspect #.each do |element| 
           #puts element.class
         #end
       end

@@ -16,15 +16,71 @@
 # It also optionally can override the defaults with a specified manifest, 
 # modulepath, and yamldir.
 
+#
+# in order to run as non-root, you may have to set
+#   statedir, and vardir
+#
+
 require 'puppet/application'
 require 'puppet/tools/compile'
+require 'puppet/tools/catalog'
 require 'find'
 
-class Puppet::Application::Tester < Puppet::Application
+class Puppet::Application::Test < Puppet::Application
   include Puppet::Tools::Compile
+  include Puppet::Tools::Catalog
   should_parse_config
-  # TODO do I need this?
+  # TODO what does this do?
   run_mode :master
+
+
+  def help
+    puts '
+ 
+= Synopsis
+
+A Puppet appliction for compiling catalogs.
+ 
+= Usage
+
+   puppet test [-d|--debug] [-v|--verbose] [--outputdir]
+   puppet test --check_tests [--modulepath MP]
+   puppet test --compile_tests [--run_noop] [--modulepath MP]
+   puppet test --test_nodes NODES [--node_type (facts|node)] [--modulepath MP]
+
+= Description
+
+This is used to compile catalogs for testing (maybe for other reasons later)
+
+= Options
+
+ check_tests:: checks your current modulepath for any manifests that do not
+    have corresponding test. prints a list of manifests missing test and returns 1.
+
+ compile_tests:: iterates though all module tests and generates a catalog for
+    each one in outputdir. By default uses facter to find facts for compilation.
+
+ test_nodes:: prints a catalog for a given node.
+
+ node_type:: used together with test_nodes, rather the node should be deserialized
+    from a node or facts yaml. Located the yaml in Puppet[:yamldir]
+
+ debug::
+   Enable full debugging.
+
+ verbose::
+ Enable verbosity.
+ 
+= Author
+  
+ Dan Bode
+ 
+= Copyright
+ 
+  Copyright (c) 2011 Puppet Labs, LLC
+  Licensed under the GPL v 2
+ '
+  end
 
   # do some initialization before arguments are processed
   def preinit 
@@ -44,15 +100,17 @@ class Puppet::Application::Tester < Puppet::Application
       :factnode => 'testnode',
       # tests from yaml
       :test_nodes => nil,
-      :node_type => :node,
+      :node_type => 'node',
       # puppet related config
-      :modulepath => Puppet[:modulepath],
+      :modulepath => nil,
       # set log levels
       :verbose => false,
       :debug => false
     }.each do |opt, value|
       options[opt]=value
     end
+    # try to allow running as non-root
+    Puppet[:vardir] = ENV['HOME']
   end
   #  "The name of the node to get facts from, usually the fqdn",
   option('--factnode NODE') do |args|
@@ -76,12 +134,12 @@ class Puppet::Application::Tester < Puppet::Application
     end
   end
   option('--node_type TYPE') do |args|
-    raise Puppet::ArgumentError unless args =~ /(node|type)/
+    raise Puppet::ArgumentError unless args =~ /(node|facts)/
     options[:node_type]=args
   end
 
   option('--modulepath MP') do |args|
-    options['modulepath']
+    options[:modulepath]=args
   end
   # TODO : these may not be required in 2.7.x
   option('--verbose', '-v')
@@ -115,8 +173,10 @@ class Puppet::Application::Tester < Puppet::Application
     @env = Puppet::Node::Environment.new(Puppet['environment'])
     if options[:modulepath]
       @modulepath = options[:modulepath]
+      Puppet[:modulepath] = @modulepath
     else
       @modulepath = @env[:modulepath]
+      Puppet[:modulepath] = @modulepath
     end
     if options[:manifest]
       @manifest = options[:manifest]
@@ -127,29 +187,35 @@ class Puppet::Application::Tester < Puppet::Application
 
   # main method
   def run_command
+    exit_code=0
     if options[:check_tests]
-      check_tests(@modulepath).each do |name|
+      size = check_tests(@modulepath).each do |name|
         Puppet.warning("#{name} is missing tests")
-      end
+      end.size
+      exit_code = 1 if size > 0
     end
     if options[:compile_tests]
-      compile_tests
+      testnames = compile_tests
+      Puppet.debug "Compile test results: #{testnames.compact.inspect}"
+      exit_code = 1 if testnames.include?(nil)
       if options[:run_noop]
-        noop_tests(testnames)
+        statuses = noop_tests(testnames.compact)
+        exit_code = 1 if statuses.include?('failed')
       end  
     end
     # creates nodes based on the serialized facts.
     if options[:test_nodes]
       node_list=nil
       if options[:test_nodes] == :all
-        node_list = get_all_nodes(type)
+        node_list = get_all_nodes(options[:node_type])
       else
-        node_list = options[:test_nodes]
+        node_list = match_nodes(options[:test_nodes], options[:node_type])
       end
       node_list.each do |node|
         compile_loaded_node(node, options[:outputdir])
       end
     end
+    exit(exit_code)
   end
 
   # for all modules in the modulepath, returns a list of manifests that
@@ -182,18 +248,30 @@ class Puppet::Application::Tester < Puppet::Application
     testnames.collect do |node_name|
       compile_new_node(node_name, options[:factnode], options[:outputdir])
     end
-    testnames
   end
 
   # iterates through testnames, and applies catalogs in outputdir
   # in noop mode
   # TODO - filter out catalogs that have execs with onlyif,unless
+  # returns the status of each run
   def noop_tests(testnames)
-    testnames.each do |test|
-      catalogfile="#{options[:outputdir]}/#{test}"
-      # for performance, I would rather make API calls
-      # TODO - switch with API calls
-      puts `puppet apply --apply #{catalogfile} --preferred_serialization_format yaml --noop`
+    testnames.collect do |catalogfile|
+      catalog = load_catalog(catalogfile, 'pson')
+      catalog = catalog.to_ral
+      Puppet[:noop] = true
+
+      require 'puppet/configurer'
+      configurer = Puppet::Configurer.new
+      begin
+        #status = configurer.run(:skip_plugin_download => true, :catalog => catalog).status
+        #Puppet.info("#{catalogfile} nooo apply result: #{status} ")
+        Puppet[:pluginsync] = false
+        status = configurer.run( :catalog => catalog)
+        'foo'
+      rescue
+        Puppet.err("Exception when noop running catalog #{$!}")
+        'failed'
+      end
     end
   end
 
@@ -225,6 +303,7 @@ class Puppet::Application::Tester < Puppet::Application
     end
     # set all of the code as puppet's code
     Puppet[:code]=code
+    Puppet.debug(Puppet[:code])
     nodes
   end
 end

@@ -1,12 +1,14 @@
 require 'puppet'
 require 'puppet/external/pson/common'
+require 'puppet/tools/catalog'
 #
 # I am storing all of the compiler related functionality here that 
 # I created in order to create the puppet test application.
 #
 module Puppet::Tools
   module Compile
-  include PSON
+    include PSON
+    include Puppet::Tools::Catalog
   
     # JJM The compiler class constant changed from 0.24 to 2.6, so we need to
     # figure out which one we want.
@@ -77,10 +79,10 @@ module Puppet::Tools
 
     #
     # create a new node, merge facts,  and compile its catalog
-    #
-    def compile_new_node(node_name, factname, outputdir, format=:facter, classes=[])
+    # I probably need to be able to pass the node an environment
+    def compile_new_node(node_name, factname, outputdir, format=:facter, options={})
       facts=get_facts(factname, format)
-      node = Puppet::Node.new(node_name, :classes=>classes)
+      node = Puppet::Node.new(node_name, options)
       node.merge(facts)
       compile_and_save_catalog(node, outputdir)
     end
@@ -90,19 +92,7 @@ module Puppet::Tools
     def compile_and_save_catalog(node, outputdir, format=:pson)
       begin
         compiled_catalog = compile_catalog_for_node(node)
-        formatted_catalog_string = nil
-        if format.to_s == 'pson'
-          formatted_catalog_string = PSON::pretty_generate(
-            compiled_catalog, 
-            :allow_nan => true, 
-            :max_nesting => false
-          )
-        elsif format.to_s == 'yaml' 
-          formatted_catalog_string = compiled_catalog.to_yaml
-        else
-          raise Puppet::ArgumentError, "Unrecognized catalog format #{format}"
-        end
-        raise ArgumentError, "invalid outputdir #{outputdir}" unless outputdir =~ /\/\w+/
+        formatted_catalog_string = format_catalog(compiled_catalog, format)
         Dir.mkdir(outputdir) unless File.directory?(outputdir)
         # NOTE:can I use the indirectory save call here?
         filename = "#{outputdir}/#{node.name}.#{format}"
